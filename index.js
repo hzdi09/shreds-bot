@@ -69,10 +69,8 @@ const WHITE_SPARKLE = '<a:whitesparkle:1536735491016237159>';
 const WHITE_MOON = '<a:whitemoon:1536734929071767633>';
 const INVIS = '<:invis:1536788533669400639>';
 
-// Recheck every 5 minutes.
 const VANITY_RECHECK_INTERVAL = 5 * 60 * 1000;
 
-// Prevent duplicate vanity notifications.
 const vanityState = new Map();
 
 // ====================
@@ -89,7 +87,7 @@ const snipeCache = new Map();
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
-    // Initial vanity check.
+    // Initial vanity check
     for (const guild of client.guilds.cache.values()) {
         try {
             await recheckGuildVanity(guild);
@@ -101,7 +99,7 @@ client.once('clientReady', async () => {
         }
     }
 
-    // Periodic vanity recheck.
+    // Periodic vanity recheck
     setInterval(async () => {
         for (const guild of client.guilds.cache.values()) {
             try {
@@ -156,7 +154,7 @@ function findRole(guild, input) {
         return guild.roles.cache.get(cleanInput) || null;
     }
 
-    const lowerInput = input.toLowerCase();
+    const lowerInput = cleanInput.toLowerCase();
 
     return guild.roles.cache.find(
         role => role.name.toLowerCase() === lowerInput
@@ -346,7 +344,6 @@ async function sendVanityNotification(member) {
 
         await channel.send({
             embeds: [embed],
-
             allowedMentions: {
                 users: [],
                 roles: [],
@@ -391,10 +388,7 @@ async function updateVanityRole(member) {
     const currentlyHasRole =
         member.roles.cache.has(role.id);
 
-    // ====================
     // ADD ROLE
-    // ====================
-
     if (hasVanity && !currentlyHasRole) {
         try {
             await member.roles.add(
@@ -419,10 +413,7 @@ async function updateVanityRole(member) {
         return;
     }
 
-    // ====================
     // REMOVE ROLE
-    // ====================
-
     if (!hasVanity && currentlyHasRole) {
         try {
             await member.roles.remove(
@@ -579,8 +570,8 @@ async function findMessageDeleter(
                 return (
                     entry.target.id === messageId &&
                     Date.now() -
-                        entry.createdTimestamp <
-                        15000
+                    entry.createdTimestamp <
+                    15000
                 );
             });
 
@@ -888,9 +879,9 @@ client.on(
 
             if (
                 interaction.customId ===
-                    'roles_previous' ||
+                'roles_previous' ||
                 interaction.customId ===
-                    'roles_next'
+                'roles_next'
             ) {
                 const roles = [
                     ...interaction.guild.roles.cache.values()
@@ -943,9 +934,9 @@ client.on(
 
             if (
                 interaction.customId ===
-                    'inrole_previous' ||
+                'inrole_previous' ||
                 interaction.customId ===
-                    'inrole_next'
+                'inrole_next'
             ) {
                 const title =
                     embed.title || '';
@@ -1097,9 +1088,13 @@ client.on(
                 );
             }
 
+            const botMember =
+                message.guild.members.me;
+
             if (
+                !botMember ||
                 verifiedRole.position >=
-                message.guild.members.me.roles.highest.position
+                botMember.roles.highest.position
             ) {
                 return message.reply(
                     '❌ I cannot manage the Verified role because it is too high.'
@@ -1174,17 +1169,17 @@ client.on(
                     args[0]
                 );
 
-            const role =
-                findRole(
-                    message.guild,
-                    args.slice(1).join(' ')
-                );
-
             if (!member) {
                 return message.reply(
                     '❌ I could not find that member.'
                 );
             }
+
+            const role =
+                findRole(
+                    message.guild,
+                    args.slice(1).join(' ')
+                );
 
             if (!role) {
                 return message.reply(
@@ -1210,6 +1205,7 @@ client.on(
             }
 
             try {
+                // If member already has role -> REMOVE IT
                 if (
                     member.roles.cache.has(
                         role.id
@@ -1225,6 +1221,7 @@ client.on(
                     );
                 }
 
+                // If member doesn't have role -> ADD IT
                 await member.roles.add(
                     role,
                     `Role added by ${message.author.tag}`
@@ -1234,10 +1231,13 @@ client.on(
                     `✅ ${member} has been given **${role.name}**.`
                 );
             } catch (error) {
-                console.error(error);
+                console.error(
+                    'Role command error:',
+                    error
+                );
 
                 return message.reply(
-                    '❌ I could not update that role.'
+                    '❌ I could not update that role. Check the bot permissions and role hierarchy.'
                 );
             }
         }
@@ -1274,7 +1274,7 @@ client.on(
                     1,
                     Math.ceil(
                         roles.length /
-                            perPage
+                        perPage
                     )
                 );
 
@@ -1341,7 +1341,7 @@ client.on(
                             )
                             .setDisabled(
                                 totalPages ===
-                                    1
+                                1
                             )
                     );
 
@@ -1370,7 +1370,7 @@ client.on(
                 if (
                     !role ||
                     role.id ===
-                        message.guild.id
+                    message.guild.id
                 ) {
                     return message.reply(
                         '❌ You do not have a role to check.'
@@ -1414,7 +1414,7 @@ client.on(
                     1,
                     Math.ceil(
                         members.length /
-                            perPage
+                        perPage
                     )
                 );
 
@@ -1486,7 +1486,7 @@ client.on(
                             )
                             .setDisabled(
                                 totalPages ===
-                                    1
+                                1
                             )
                     );
 
@@ -2078,10 +2078,18 @@ client.on(
 // ====================
 
 if (!process.env.DISCORD_TOKEN) {
-    console.error('DISCORD_TOKEN is missing from environment variables.');
+    console.error(
+        'DISCORD_TOKEN is missing from environment variables.'
+    );
+
     process.exit(1);
 }
 
-client.login(process.env.DISCORD_TOKEN).catch(error => {
-    console.error('Discord login failed:', error);
+client.login(
+    process.env.DISCORD_TOKEN
+).catch(error => {
+    console.error(
+        'Discord login failed:',
+        error
+    );
 });
