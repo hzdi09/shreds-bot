@@ -1,5 +1,4 @@
 require('dotenv').config();
-require('dotenv').config();
 
 const http = require('http');
 
@@ -11,10 +10,6 @@ http.createServer((req, res) => {
 }).listen(PORT, '0.0.0.0', () => {
     console.log(`Web server listening on port ${PORT}`);
 });
-
-const {
-    Client,
-    GatewayIntentBits,
 
 const {
     Client,
@@ -1120,7 +1115,6 @@ client.on('messageCreate', async message => {
     // ====================
 
     if (command === 'boosterrole') {
-
         const isAdmin =
             message.member.permissions.has(
                 PermissionsBitField.Flags.Administrator
@@ -1135,7 +1129,6 @@ client.on('messageCreate', async message => {
             );
         }
 
-        // Check bot exists
         const botMember = message.guild.members.me;
 
         if (!botMember) {
@@ -1144,7 +1137,6 @@ client.on('messageCreate', async message => {
             );
         }
 
-        // Check Manage Roles
         if (
             !botMember.permissions.has(
                 PermissionsBitField.Flags.ManageRoles
@@ -1193,7 +1185,6 @@ client.on('messageCreate', async message => {
             );
         }
 
-        // Make sure the bot can create/manage roles
         if (
             botMember.roles.highest.position <=
             message.guild.roles.everyone.position
@@ -1206,7 +1197,6 @@ client.on('messageCreate', async message => {
         let role = null;
 
         try {
-            // First attempt: gradient role
             role =
                 await message.guild.roles.create({
                     name: roleName,
@@ -1223,13 +1213,11 @@ client.on('messageCreate', async message => {
             );
 
         } catch (gradientError) {
-
             console.error(
                 'Gradient role creation failed:',
                 gradientError
             );
 
-            // Fallback: create normal solid-color role
             try {
                 role =
                     await message.guild.roles.create({
@@ -1244,7 +1232,6 @@ client.on('messageCreate', async message => {
                 );
 
             } catch (solidError) {
-
                 console.error(
                     'Solid role creation also failed:',
                     solidError
@@ -1256,9 +1243,7 @@ client.on('messageCreate', async message => {
             }
         }
 
-        // Check hierarchy after creation
         if (!canManageRole(message, role)) {
-
             try {
                 await role.delete(
                     'Created too high in role hierarchy'
@@ -1270,9 +1255,7 @@ client.on('messageCreate', async message => {
             );
         }
 
-        // Give role to booster
         try {
-
             await message.member.roles.add(
                 role,
                 'Booster role created'
@@ -1292,7 +1275,6 @@ client.on('messageCreate', async message => {
             );
 
         } catch (error) {
-
             console.error(
                 'Booster role assignment error:',
                 error
