@@ -1,3 +1,4 @@
+```js
 require('dotenv').config();
 
 const http = require('http');
@@ -58,17 +59,16 @@ const RULES_CHANNEL_ID = '1516776015513522226';
 // ====================
 
 const VANITY_LOG_CHANNEL_ID = '1516784477039497227';
-const BLACK_HEART = '<a:bheart:1536805933982949477>';
 
+const BLACK_HEART = '<a:bheart:1536805933982949477>';
 const WHITE_SPARKLE = '<a:whitesparkle:1536735491016237159>';
 const WHITE_MOON = '<a:whitemoon:1536734929071767633>';
 const INVIS = '<:invis:1536788533669400639>';
 
-// How often the bot rechecks everyone.
-// 5 minutes = 300000 milliseconds.
+// Recheck every 5 minutes.
 const VANITY_RECHECK_INTERVAL = 5 * 60 * 1000;
 
-// Prevent duplicate notification spam.
+// Prevent duplicate vanity notifications.
 const vanityState = new Map();
 
 // ====================
@@ -87,7 +87,14 @@ client.once('clientReady', async () => {
 
     // Initial vanity check.
     for (const guild of client.guilds.cache.values()) {
-        await recheckGuildVanity(guild);
+        try {
+            await recheckGuildVanity(guild);
+        } catch (error) {
+            console.error(
+                `Initial vanity check error in ${guild.name}:`,
+                error
+            );
+        }
     }
 
     // Periodic vanity recheck.
@@ -306,10 +313,7 @@ function hasShredsVanity(member) {
 // VANITY NOTIFICATION
 // ====================
 
-async function sendVanityNotification(
-    member,
-    action
-) {
+async function sendVanityNotification(member) {
     try {
         const channel =
             await member.guild.channels.fetch(
@@ -323,28 +327,29 @@ async function sendVanityNotification(
             return;
         }
 
-        let description;
-
-        if (action === 'added') {
-            description =
-                `${member}\n\n` +
-                `Thank you for repping **/shreds**! ` +
-                `You can now enjoy __pic perms__ ${BLACK_HEART}`;
-        } else {
-            description =
-                `${member}\n\n` +
-                `You are no longer repping **/shreds**, ` +
-                `so your __pic perms__ have been removed ${BLACK_HEART}`;
-        }
+        // ONLY send a notification when the member
+        // starts repping /shreds.
+        //
+        // There is intentionally NO "stopped repping"
+        // notification anymore.
 
         const embed = new EmbedBuilder()
-            .setDescription(description);
+            .setDescription(
+                `${member}\n\n` +
+                `Thank you for repping **/shreds**! ` +
+                `You can now enjoy __pic perms__ ${BLACK_HEART}`
+            )
+            .setThumbnail(
+                member.user.displayAvatarURL({
+                    extension: 'png',
+                    size: 256
+                })
+            );
 
         await channel.send({
             embeds: [embed],
 
-            // This makes the member mention appear,
-            // but Discord will NOT actually notify/ping them.
+            // Shows the member mention without pinging them.
             allowedMentions: {
                 users: [],
                 roles: [],
@@ -385,6 +390,7 @@ async function updateVanityRole(member) {
     }
 
     const hasVanity = hasShredsVanity(member);
+
     const currentlyHasRole =
         member.roles.cache.has(role.id);
 
@@ -405,10 +411,9 @@ async function updateVanityRole(member) {
                 `Added Picture Permissions to ${member.user.tag}`
             );
 
-            await sendVanityNotification(
-                member,
-                'added'
-            );
+            // Notification ONLY happens when they
+            // start repping /shreds.
+            await sendVanityNotification(member);
         } catch (error) {
             console.error(
                 'Vanity role add error:',
@@ -436,10 +441,9 @@ async function updateVanityRole(member) {
                 `Removed Picture Permissions from ${member.user.tag}`
             );
 
-            await sendVanityNotification(
-                member,
-                'removed'
-            );
+            // IMPORTANT:
+            // No notification is sent here.
+            // The bot silently removes the role.
         } catch (error) {
             console.error(
                 'Vanity role removal error:',
@@ -707,6 +711,7 @@ async function showRolesPage(
     );
 
     if (page < 0) page = 0;
+
     if (page >= totalPages) {
         page = totalPages - 1;
     }
@@ -1037,6 +1042,7 @@ client.on(
     async message => {
         if (message.author.bot) return;
         if (!message.guild) return;
+
         if (!message.content.startsWith(PREFIX)) {
             return;
         }
@@ -2089,3 +2095,4 @@ client.on(
 client.login(
     process.env.DISCORD_TOKEN
 );
+```
