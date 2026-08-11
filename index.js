@@ -1,3 +1,4 @@
+```js
 require('dotenv').config();
 
 const http = require('http');
@@ -53,11 +54,15 @@ const WELCOME_CHANNEL_ID = '1516785213894820012';
 const CHAT_CHANNEL_ID = '1536494758430515263';
 const RULES_CHANNEL_ID = '1516776015513522226';
 
-const REP_CHANNEL_ID = '1516784477039497227';
-
 const WHITE_SPARKLE = '<a:whitesparkle:1536735491016237159>';
 const WHITE_MOON = '<a:whitemoon:1536734929071767633>';
 const INVIS = '<:invis:1536788533669400639>';
+
+// ====================
+// VANITY REP SETTINGS
+// ====================
+
+const REP_CHANNEL_ID = '1516784477039497227';
 const BLACK_HEART = '<a:bheart:1536805933982949477>';
 
 // ====================
@@ -74,13 +79,25 @@ const snipeCache = new Map();
 client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
 
-    // Initial vanity check when bot starts
-    await recheckAllVanityRoles();
+    // Recheck all members when the bot starts.
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            await guild.members.fetch();
 
-    // Recheck every 60 seconds
-    setInterval(async () => {
-        await recheckAllVanityRoles();
-    }, 60 * 1000);
+            for (const member of guild.members.cache.values()) {
+                if (!member.user.bot) {
+                    await updateVanityRole(member, false);
+                }
+            }
+
+            console.log(`Vanity roles checked in ${guild.name}`);
+        } catch (error) {
+            console.error(
+                `Startup vanity check failed in ${guild.name}:`,
+                error
+            );
+        }
+    }
 });
 
 // ====================
@@ -277,37 +294,46 @@ function hasShredsVanity(member) {
 }
 
 // ====================
-// REP NOTIFICATION
+// REP EMBED
 // ====================
 
-async function sendRepNotification(member) {
+async function sendRepEmbed(member, added) {
     try {
         const channel = await member.guild.channels.fetch(
             REP_CHANNEL_ID
         );
 
         if (!channel || !channel.isTextBased()) {
-            console.error(
-                `Rep channel ${REP_CHANNEL_ID} could not be found or is not text-based.`
-            );
             return;
         }
 
+        let embed;
+
+        if (added) {
+            embed = new EmbedBuilder()
+                .setDescription(
+                    `${member} thank you for repping **/shreds**! you can now enjoy your __pic perms__ ${BLACK_HEART}`
+                );
+        } else {
+            embed = new EmbedBuilder()
+                .setDescription(
+                    `${member} you are no longer repping **/shreds**, so your __pic perms__ have been removed ${BLACK_HEART}`
+                );
+        }
+
         await channel.send({
-            content:
-                `${member} thank you for repping **/shreds**! ` +
-                `you can now enjoy your __pic perms__ ${BLACK_HEART}`,
+            embeds: [embed],
+
+            // The mention is displayed in the embed,
+            // but Discord will NOT actually ping the user.
             allowedMentions: {
-                users: [member.id],
+                users: [],
                 roles: [],
                 repliedUser: false
             }
         });
     } catch (error) {
-        console.error(
-            'Rep notification error:',
-            error
-        );
+        console.error('Rep embed error:', error);
     }
 }
 
@@ -315,8 +341,10 @@ async function sendRepNotification(member) {
 // VANITY ROLE
 // ====================
 
-async function updateVanityRole(member) {
+async function updateVanityRole(member, announce = true) {
     if (!member || !member.guild) return;
+
+    if (member.user.bot) return;
 
     const role = findPictureRole(member.guild);
 
@@ -326,9 +354,7 @@ async function updateVanityRole(member) {
 
     if (!botMember) return;
 
-    if (
-        role.position >= botMember.roles.highest.position
-    ) {
+    if (role.position >= botMember.roles.highest.position) {
         console.error(
             `Cannot manage Picture Permissions role in ${member.guild.name}: role is too high.`
         );
@@ -336,87 +362,54 @@ async function updateVanityRole(member) {
     }
 
     const hasVanity = hasShredsVanity(member);
-    const alreadyHasRole = member.roles.cache.has(role.id);
+    const currentlyHasRole = member.roles.cache.has(role.id);
 
-    try {
-        // ====================
-        // MEMBER IS REPPING
-        // ====================
+    // ====================
+    // STARTED REPPING
+    // ====================
 
-        if (hasVanity) {
-            if (!alreadyHasRole) {
-                await member.roles.add(
-                    role,
-                    'Shreds vanity detected'
-                );
+    if (hasVanity && !currentlyHasRole) {
+        try {
+            await member.roles.add(
+                role,
+                'Shreds vanity detected'
+            );
 
-                console.log(
-                    `Added Picture Permissions to ${member.user.tag} for repping /shreds.`
-                );
+            console.log(
+                `Added Picture Permissions to ${member.user.tag}`
+            );
 
-                // Send the thank-you message ONLY when
-                // the bot actually adds the role.
-                await sendRepNotification(member);
+            if (announce) {
+                await sendRepEmbed(member, true);
             }
-
-            return;
+        } catch (error) {
+            console.error('Vanity role add error:', error);
         }
 
-        // ====================
-        // MEMBER IS NOT REPPING
-        // ====================
+        return;
+    }
 
-        if (alreadyHasRole) {
+    // ====================
+    // STOPPED REPPING
+    // ====================
+
+    if (!hasVanity && currentlyHasRole) {
+        try {
             await member.roles.remove(
                 role,
                 'Shreds vanity removed'
             );
 
             console.log(
-                `Removed Picture Permissions from ${member.user.tag} because /shreds was removed.`
+                `Removed Picture Permissions from ${member.user.tag}`
             );
-        }
 
-    } catch (error) {
-        console.error(
-            `Vanity role error for ${member.user.tag}:`,
-            error
-        );
-    }
-}
-
-// ====================
-// RECHECK ALL VANITY ROLES
-// ====================
-
-async function recheckAllVanityRoles() {
-    try {
-        for (const guild of client.guilds.cache.values()) {
-            try {
-                await guild.members.fetch();
-
-                for (const member of guild.members.cache.values()) {
-                    if (member.user.bot) continue;
-
-                    await updateVanityRole(member);
-                }
-
-                console.log(
-                    `Vanity role recheck completed for ${guild.name}.`
-                );
-
-            } catch (error) {
-                console.error(
-                    `Vanity recheck failed for ${guild.name}:`,
-                    error
-                );
+            if (announce) {
+                await sendRepEmbed(member, false);
             }
+        } catch (error) {
+            console.error('Vanity role removal error:', error);
         }
-    } catch (error) {
-        console.error(
-            'Global vanity recheck error:',
-            error
-        );
     }
 }
 
@@ -430,17 +423,19 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
         oldPresence?.member;
 
     if (!member) return;
-    if (member.user.bot) return;
 
-    await updateVanityRole(member);
+    await updateVanityRole(member, true);
 });
 
 // ====================
-// WELCOME MESSAGE
+// MEMBER JOIN
 // ====================
 
 client.on('guildMemberAdd', async member => {
     try {
+        // Check vanity silently when somebody joins.
+        await updateVanityRole(member, false);
+
         const channel = await member.guild.channels.fetch(
             WELCOME_CHANNEL_ID
         );
@@ -471,10 +466,7 @@ client.on('guildMemberAdd', async member => {
             }
         });
     } catch (error) {
-        console.error(
-            'Welcome message error:',
-            error
-        );
+        console.error('Welcome message error:', error);
     }
 });
 
@@ -570,10 +562,7 @@ client.on('messageDelete', async deletedMessage => {
             snipes.length = MAX_SNIPE_ENTRIES;
         }
     } catch (error) {
-        console.error(
-            'Snipe storage error:',
-            error
-        );
+        console.error('Snipe storage error:', error);
     }
 });
 
@@ -837,7 +826,6 @@ client.on('interactionCreate', async interaction => {
 
             return;
         }
-
     } catch (error) {
         console.error(
             'Button interaction error:',
@@ -1754,3 +1742,4 @@ client.on('messageCreate', async message => {
 client.login(
     process.env.DISCORD_TOKEN
 );
+```
