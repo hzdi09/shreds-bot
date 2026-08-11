@@ -1,15 +1,19 @@
-```js
 require('dotenv').config();
 
 const http = require('http');
 
 const PORT = process.env.PORT || 3000;
 
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
+const server = http.createServer((req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/plain'
+    });
+
     res.end('Shreds bot is online!');
-}).listen(PORT, '0.0.0.0', () => {
-    console.log(`Web server listening on port ${PORT}`);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('Web server listening on port ' + PORT);
 });
 
 const {
@@ -327,12 +331,6 @@ async function sendVanityNotification(member) {
             return;
         }
 
-        // ONLY send a notification when the member
-        // starts repping /shreds.
-        //
-        // There is intentionally NO "stopped repping"
-        // notification anymore.
-
         const embed = new EmbedBuilder()
             .setDescription(
                 `${member}\n\n` +
@@ -349,7 +347,6 @@ async function sendVanityNotification(member) {
         await channel.send({
             embeds: [embed],
 
-            // Shows the member mention without pinging them.
             allowedMentions: {
                 users: [],
                 roles: [],
@@ -411,8 +408,6 @@ async function updateVanityRole(member) {
                 `Added Picture Permissions to ${member.user.tag}`
             );
 
-            // Notification ONLY happens when they
-            // start repping /shreds.
             await sendVanityNotification(member);
         } catch (error) {
             console.error(
@@ -440,10 +435,6 @@ async function updateVanityRole(member) {
             console.log(
                 `Removed Picture Permissions from ${member.user.tag}`
             );
-
-            // IMPORTANT:
-            // No notification is sent here.
-            // The bot silently removes the role.
         } catch (error) {
             console.error(
                 'Vanity role removal error:',
@@ -454,7 +445,6 @@ async function updateVanityRole(member) {
         return;
     }
 
-    // Keep internal state accurate.
     vanityState.set(
         member.id,
         currentlyHasRole
@@ -548,7 +538,6 @@ client.on(
                 }
             });
 
-            // Check vanity when someone joins.
             await updateVanityRole(member);
         } catch (error) {
             console.error(
@@ -2010,11 +1999,9 @@ client.on(
             }
 
             try {
-                await message.channel.send(
-                    {
-                        embeds: [embed]
-                    }
-                );
+                await message.channel.send({
+                    embeds: [embed]
+                });
 
                 const otherAttachments =
                     entry.attachments
@@ -2032,20 +2019,18 @@ client.on(
                 if (
                     otherAttachments.length
                 ) {
-                    await message.channel.send(
-                        {
-                            content:
-                                '**Attachments:**\n' +
-                                otherAttachments
-                                    .map(
-                                        file =>
-                                            `[${file.name || 'Attachment'}](${file.url})`
-                                    )
-                                    .join(
-                                        '\n'
-                                    )
-                        }
-                    );
+                    await message.channel.send({
+                        content:
+                            '**Attachments:**\n' +
+                            otherAttachments
+                                .map(
+                                    file =>
+                                        `[${file.name || 'Attachment'}](${file.url})`
+                                )
+                                .join(
+                                    '\n'
+                                )
+                    });
                 }
             } catch (error) {
                 console.error(
@@ -2092,7 +2077,11 @@ client.on(
 // LOGIN
 // ====================
 
-client.login(
-    process.env.DISCORD_TOKEN
-);
-```
+if (!process.env.DISCORD_TOKEN) {
+    console.error('DISCORD_TOKEN is missing from environment variables.');
+    process.exit(1);
+}
+
+client.login(process.env.DISCORD_TOKEN).catch(error => {
+    console.error('Discord login failed:', error);
+});
