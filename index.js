@@ -88,6 +88,7 @@ async function findMember(guild, input) {
     }
 
     const lowerInput = input.toLowerCase();
+
     const members = await guild.members.fetch();
 
     return members.find(member =>
@@ -741,6 +742,78 @@ client.on('messageCreate', async message => {
     const command = args.shift()?.toLowerCase();
 
     if (!command) return;
+
+    // ====================
+    // PING
+    // ====================
+
+    if (command === 'ping') {
+        try {
+            const sent = await message.reply(
+                '🏓 Pinging...'
+            );
+
+            const latency =
+                sent.createdTimestamp -
+                message.createdTimestamp;
+
+            const websocketPing =
+                client.ws.ping;
+
+            await sent.edit(
+                `🏓 **Pong!**\n\n` +
+                `**Bot latency:** \`${latency}ms\`\n` +
+                `**Discord API:** \`${websocketPing}ms\``
+            );
+        } catch (error) {
+            console.error(
+                'Ping command error:',
+                error
+            );
+        }
+
+        return;
+    }
+
+    // ====================
+    // CMDS
+    // ====================
+
+    if (command === 'cmds') {
+        const embed = new EmbedBuilder()
+            .setTitle('Shreds Bot Commands')
+            .setDescription(
+                '**General**\n' +
+                '`,cmds` — Show this command list\n' +
+                '`,ping` — Check bot latency\n' +
+                '`,roles` — Show all server roles\n' +
+                '`,inrole <role>` — Show members in a role\n\n' +
+
+                '**Moderation**\n' +
+                '`,verify <user>` — Verify a member\n' +
+                '`,role <user> <role>` — Add/remove a role\n' +
+                '`,kick <user> <reason>` — Kick a member\n' +
+                '`,ban <user> <reason>` — Ban a member\n' +
+                '`,timeout <user> <duration> <reason>` — Timeout a member\n\n' +
+
+                '**Booster**\n' +
+                '`,boosterrole <colour1> <colour2> <name>` — Create a booster role\n\n' +
+
+                '**Snipe**\n' +
+                '`,s` — View the latest deleted message\n' +
+                '`,s <page>` — View a specific snipe page\n' +
+                '`,cs` — Clear snipe history'
+            )
+            .setFooter({
+                text: 'Prefix: ,'
+            });
+
+        await message.reply({
+            embeds: [embed]
+        });
+
+        return;
+    }
 
     // ====================
     // VERIFY
