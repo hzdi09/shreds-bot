@@ -11,7 +11,8 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    WebSocketStatus
 } = require('discord.js');
 
 // ============================================================
@@ -40,9 +41,19 @@ const INVIS = '<:invis:1536788533669400639>';
 
 const VANITY_RECHECK_INTERVAL = 5 * 60 * 1000;
 
+// Connection recovery settings
+const CONNECTION_CHECK_INTERVAL = 30 * 1000;
+const RECONNECT_DELAY = 10 * 1000;
+const MAX_NOT_READY_TIME = 90 * 1000;
+
 const MAX_SNIPE_ENTRIES = 50;
+
 const vanityState = new Map();
 const snipeCache = new Map();
+
+let reconnecting = false;
+let notReadySince = null;
+let reconnectTimer = null;
 
 
 // ============================================================
@@ -69,7 +80,6 @@ const server = http.createServer((req, res) => {
 
     res.setHeader('Content-Type', 'application/json');
 
-    // Health endpoint
     if (url === '/health') {
         const ready = client.isReady();
 
@@ -83,7 +93,6 @@ const server = http.createServer((req, res) => {
         }));
     }
 
-    // Basic endpoint
     res.writeHead(200);
 
     res.end(JSON.stringify({
@@ -491,10 +500,135 @@ async function recheckGuildVanity(guild) {
 
 
 // ============================================================
+// DISCORD CONNECTION RECOVERY
+// ============================================================
+
+async function reconnectDiscord(reason = 'Unknown reason') {
+    if (reconnecting) {
+        console.log(
+            'Discord reconnect already in progress.'
+        );
+        return;
+    }
+
+    reconnecting = true;
+
+    console.log('========================================');
+    console.log('DISCORD CONNECTION RECOVERY');
+    console.log(`Reason: ${reason}`);
+    console.log('========================================');
+
+    try {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
+        try {
+            client.destroy();
+        } catch (error) {
+            console.error(
+                'Error destroying old Discord connection:',
+                error
+            );
+        }
+
+        await new Promise(resolve =>
+            setTimeout(resolve, RECONNECT_DELAY)
+        );
+
+        console.log(
+            'Attempting to reconnect to Discord...'
+        );
+
+        await client.login(
+            process.env.DISCORD_TOKEN
+        );
+
+        console.log(
+            'Discord reconnect attempt completed.'
+        );
+
+        notReadySince = null;
+    } catch (error) {
+        console.error(
+            'Discord reconnect failed:',
+            error
+        );
+
+        notReadySince = Date.now();
+
+        reconnectTimer = setTimeout(() => {
+            reconnectDiscord(
+                'Previous reconnect attempt failed'
+            );
+        }, RECONNECT_DELAY);
+    } finally {
+        reconnecting = false;
+    }
+}
+
+
+// ============================================================
+// CONNECTION WATCHDOG
+// ============================================================
+
+setInterval(() => {
+    try {
+        const ready = client.isReady();
+
+        if (ready) {
+            if (notReadySince !== null) {
+                console.log(
+                    'Discord connection is READY again.'
+                );
+            }
+
+            notReadySince = null;
+            return;
+        }
+
+        if (notReadySince === null) {
+            notReadySince = Date.now();
+
+            console.warn(
+                'Discord client is not ready. Starting recovery timer...'
+            );
+
+            return;
+        }
+
+        const notReadyFor =
+            Date.now() - notReadySince;
+
+        console.warn(
+            `Discord has not been ready for ${Math.floor(notReadyFor / 1000)} seconds.`
+        );
+
+        if (
+            notReadyFor >= MAX_NOT_READY_TIME &&
+            !reconnecting
+        ) {
+            reconnectDiscord(
+                `Discord client was not ready for ${Math.floor(notReadyFor / 1000)} seconds`
+            );
+        }
+    } catch (error) {
+        console.error(
+            'Connection watchdog error:',
+            error
+        );
+    }
+}, CONNECTION_CHECK_INTERVAL);
+
+
+// ============================================================
 // READY
 // ============================================================
 
 client.once('clientReady', async () => {
+    notReadySince = null;
+
     console.log('========================================');
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Bot ID: ${client.user.id}`);
@@ -546,15 +680,24 @@ client.once('clientReady', async () => {
 // ============================================================
 
 client.on('error', error => {
-    console.error('Discord client error:', error);
+    console.error(
+        'Discord client error:',
+        error
+    );
 });
 
 client.on('warn', warning => {
-    console.warn('Discord warning:', warning);
+    console.warn(
+        'Discord warning:',
+        warning
+    );
 });
 
 client.on('shardError', error => {
-    console.error('Discord shard error:', error);
+    console.error(
+        'Discord shard error:',
+        error
+    );
 });
 
 client.on('shardDisconnect', (event, shardId) => {
@@ -562,6 +705,10 @@ client.on('shardDisconnect', (event, shardId) => {
         `Discord shard ${shardId} disconnected.`,
         event
     );
+
+    if (notReadySince === null) {
+        notReadySince = Date.now();
+    }
 });
 
 client.on('shardReconnecting', shardId => {
@@ -574,6 +721,10 @@ client.on('shardReady', shardId => {
     console.log(
         `Discord shard ${shardId} ready.`
     );
+
+    if (client.isReady()) {
+        notReadySince = null;
+    }
 });
 
 
@@ -712,41 +863,24 @@ client.on(
 
             const entry = {
                 id: deletedMessage.id,
-
-                guildId:
-                    deletedMessage.guild.id,
-
-                authorId:
-                    deletedMessage.author?.id ||
-                    null,
-
+                guildId: deletedMessage.guild.id,
+                authorId: deletedMessage.author?.id || null,
                 authorName:
                     deletedMessage.author?.tag ||
                     deletedMessage.author?.username ||
                     'Unknown user',
-
                 content:
-                    deletedMessage.content ||
-                    '',
-
+                    deletedMessage.content || '',
                 channelId:
-                    deletedMessage.channel?.id ||
-                    null,
-
+                    deletedMessage.channel?.id || null,
                 channelName:
                     deletedMessage.channel?.name ||
                     'Unknown channel',
-
                 deletedAt: Date.now(),
-
                 deleterId:
-                    deleter?.id ||
-                    null,
-
+                    deleter?.id || null,
                 deleterName:
-                    deleter?.tag ||
-                    null,
-
+                    deleter?.tag || null,
                 attachments:
                     deletedMessage.attachments
                         ? [
@@ -851,30 +985,19 @@ async function showRolesPage(
         new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(
-                        'roles_previous'
-                    )
+                    .setCustomId('roles_previous')
                     .setLabel('Previous')
                     .setEmoji('◀️')
-                    .setStyle(
-                        ButtonStyle.Secondary
-                    )
-                    .setDisabled(
-                        page === 0
-                    ),
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page === 0),
 
                 new ButtonBuilder()
-                    .setCustomId(
-                        'roles_next'
-                    )
+                    .setCustomId('roles_next')
                     .setLabel('Next')
                     .setEmoji('▶️')
-                    .setStyle(
-                        ButtonStyle.Secondary
-                    )
+                    .setStyle(ButtonStyle.Secondary)
                     .setDisabled(
-                        page ===
-                        totalPages - 1
+                        page === totalPages - 1
                     )
             );
 
@@ -902,9 +1025,7 @@ async function showInRolePage(
 
     const totalPages = Math.max(
         1,
-        Math.ceil(
-            members.length / perPage
-        )
+        Math.ceil(members.length / perPage)
     );
 
     page = Math.max(
@@ -950,30 +1071,19 @@ async function showInRolePage(
         new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(
-                        'inrole_previous'
-                    )
+                    .setCustomId('inrole_previous')
                     .setLabel('Previous')
                     .setEmoji('◀️')
-                    .setStyle(
-                        ButtonStyle.Secondary
-                    )
-                    .setDisabled(
-                        page === 0
-                    ),
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page === 0),
 
                 new ButtonBuilder()
-                    .setCustomId(
-                        'inrole_next'
-                    )
+                    .setCustomId('inrole_next')
                     .setLabel('Next')
                     .setEmoji('▶️')
-                    .setStyle(
-                        ButtonStyle.Secondary
-                    )
+                    .setStyle(ButtonStyle.Secondary)
                     .setDisabled(
-                        page ===
-                        totalPages - 1
+                        page === totalPages - 1
                     )
             );
 
@@ -1005,12 +1115,9 @@ client.on(
                 });
             }
 
-            // ROLES
             if (
-                interaction.customId ===
-                    'roles_previous' ||
-                interaction.customId ===
-                    'roles_next'
+                interaction.customId === 'roles_previous' ||
+                interaction.customId === 'roles_next'
             ) {
                 const roles = [
                     ...interaction.guild.roles.cache.values()
@@ -1053,12 +1160,9 @@ client.on(
                 return;
             }
 
-            // INROLE
             if (
-                interaction.customId ===
-                    'inrole_previous' ||
-                interaction.customId ===
-                    'inrole_next'
+                interaction.customId === 'inrole_previous' ||
+                interaction.customId === 'inrole_next'
             ) {
                 const roleName =
                     (
@@ -1151,9 +1255,7 @@ client.on(
     async message => {
         if (message.author.bot) return;
         if (!message.guild) return;
-        if (!message.content.startsWith(PREFIX)) {
-            return;
-        }
+        if (!message.content.startsWith(PREFIX)) return;
 
         const args =
             message.content
@@ -1192,9 +1294,7 @@ client.on(
         if (command === 'cmds') {
             const embed =
                 new EmbedBuilder()
-                    .setTitle(
-                        'Shreds Commands'
-                    )
+                    .setTitle('Shreds Commands')
                     .setDescription(
                         [
                             '`,ping` — Bot latency',
@@ -1381,10 +1481,7 @@ client.on(
                 });
             }
 
-            if (
-                !args[0] ||
-                !args[1]
-            ) {
+            if (!args[0] || !args[1]) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1404,9 +1501,7 @@ client.on(
             const role =
                 findRole(
                     message.guild,
-                    args
-                        .slice(1)
-                        .join(' ')
+                    args.slice(1).join(' ')
                 );
 
             if (!member) {
@@ -1442,12 +1537,7 @@ client.on(
                 });
             }
 
-            if (
-                !canManageRole(
-                    message,
-                    role
-                )
-            ) {
+            if (!canManageRole(message, role)) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1614,8 +1704,7 @@ client.on(
                                 ButtonStyle.Secondary
                             )
                             .setDisabled(
-                                totalPages ===
-                                1
+                                totalPages === 1
                             )
                     );
 
@@ -1770,8 +1859,7 @@ client.on(
                                 ButtonStyle.Secondary
                             )
                             .setDisabled(
-                                totalPages ===
-                                1
+                                totalPages === 1
                             )
                     );
 
@@ -1797,10 +1885,7 @@ client.on(
                     message.member.premiumSince
                 );
 
-            if (
-                !isAdmin &&
-                !isBooster
-            ) {
+            if (!isAdmin && !isBooster) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1851,36 +1936,22 @@ client.on(
                 });
             }
 
-            let colour1 =
-                args[0].trim();
+            let colour1 = args[0].trim();
+            let colour2 = args[1].trim();
 
-            let colour2 =
-                args[1].trim();
-
-            if (
-                !colour1.startsWith('#')
-            ) {
-                colour1 =
-                    `#${colour1}`;
+            if (!colour1.startsWith('#')) {
+                colour1 = `#${colour1}`;
             }
 
-            if (
-                !colour2.startsWith('#')
-            ) {
-                colour2 =
-                    `#${colour2}`;
+            if (!colour2.startsWith('#')) {
+                colour2 = `#${colour2}`;
             }
 
-            const hexRegex =
-                /^#[0-9A-Fa-f]{6}$/;
+            const hexRegex = /^#[0-9A-Fa-f]{6}$/;
 
             if (
-                !hexRegex.test(
-                    colour1
-                ) ||
-                !hexRegex.test(
-                    colour2
-                )
+                !hexRegex.test(colour1) ||
+                !hexRegex.test(colour2)
             ) {
                 return message.reply({
                     embeds: [
@@ -1905,10 +1976,8 @@ client.on(
                     await message.guild.roles.create({
                         name: roleName,
                         colors: {
-                            primaryColor:
-                                colour1,
-                            secondaryColor:
-                                colour2
+                            primaryColor: colour1,
+                            secondaryColor: colour2
                         },
                         reason:
                             `Booster role created by ${message.author.tag}`
@@ -1944,12 +2013,7 @@ client.on(
                 }
             }
 
-            if (
-                !canManageRole(
-                    message,
-                    role
-                )
-            ) {
+            if (!canManageRole(message, role)) {
                 try {
                     await role.delete(
                         'Created too high in role hierarchy'
@@ -1973,8 +2037,7 @@ client.on(
                 );
 
                 const isGradient =
-                    role.colors?.secondaryColor !=
-                    null;
+                    role.colors?.secondaryColor != null;
 
                 return message.reply({
                     embeds: [
@@ -2065,15 +2128,11 @@ client.on(
             }
 
             const reason =
-                args
-                    .slice(1)
-                    .join(' ') ||
+                args.slice(1).join(' ') ||
                 'No reason provided';
 
             try {
-                await member.kick(
-                    reason
-                );
+                await member.kick(reason);
 
                 return message.reply({
                     embeds: [
@@ -2162,15 +2221,11 @@ client.on(
             }
 
             const reason =
-                args
-                    .slice(1)
-                    .join(' ') ||
+                args.slice(1).join(' ') ||
                 'No reason provided';
 
             try {
-                await member.ban({
-                    reason
-                });
+                await member.ban({ reason });
 
                 return message.reply({
                     embeds: [
@@ -2219,10 +2274,7 @@ client.on(
                 });
             }
 
-            if (
-                !args[0] ||
-                !args[1]
-            ) {
+            if (!args[0] || !args[1]) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2251,9 +2303,7 @@ client.on(
             }
 
             const duration =
-                parseDuration(
-                    args[1]
-                );
+                parseDuration(args[1]);
 
             if (!duration) {
                 return message.reply({
@@ -2273,10 +2323,7 @@ client.on(
                 60 *
                 1000;
 
-            if (
-                duration >
-                MAX_TIMEOUT
-            ) {
+            if (duration > MAX_TIMEOUT) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2287,9 +2334,7 @@ client.on(
                 });
             }
 
-            if (
-                !member.moderatable
-            ) {
+            if (!member.moderatable) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2301,9 +2346,7 @@ client.on(
             }
 
             const reason =
-                args
-                    .slice(2)
-                    .join(' ') ||
+                args.slice(2).join(' ') ||
                 'No reason provided';
 
             try {
@@ -2366,9 +2409,7 @@ client.on(
                     Number(args[0]);
 
                 if (
-                    !Number.isInteger(
-                        parsedPage
-                    ) ||
+                    !Number.isInteger(parsedPage) ||
                     parsedPage < 1
                 ) {
                     return message.reply({
@@ -2458,14 +2499,9 @@ client.on(
                                     'image/'
                                 )
                         )
-                        .slice(
-                            0,
-                            10
-                        );
+                        .slice(0, 10);
 
-                if (
-                    otherAttachments.length
-                ) {
+                if (otherAttachments.length) {
                     await message.channel.send({
                         content:
                             '**Attachments:**\n' +
@@ -2583,16 +2619,11 @@ client.login(
         'DISCORD LOGIN FAILED'
     );
 
-    console.error(
-        error
-    );
+    console.error(error);
 
     console.error(
         '========================================'
     );
 
-    // IMPORTANT:
-    // Kill the process so Render knows
-    // the bot actually failed.
     process.exit(1);
 });
