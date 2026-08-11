@@ -53,9 +53,12 @@ const WELCOME_CHANNEL_ID = '1516785213894820012';
 const CHAT_CHANNEL_ID = '1536494758430515263';
 const RULES_CHANNEL_ID = '1516776015513522226';
 
+const REP_CHANNEL_ID = '1516784477039497227';
+
 const WHITE_SPARKLE = '<a:whitesparkle:1536735491016237159>';
 const WHITE_MOON = '<a:whitemoon:1536734929071767633>';
 const INVIS = '<:invis:1536788533669400639>';
+const BLACK_HEART = '<a:bheart:1536805933982949477>';
 
 // ====================
 // SNIPE SETTINGS
@@ -68,8 +71,16 @@ const snipeCache = new Map();
 // BOT READY
 // ====================
 
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    // Initial vanity check when bot starts
+    await recheckAllVanityRoles();
+
+    // Recheck every 60 seconds
+    setInterval(async () => {
+        await recheckAllVanityRoles();
+    }, 60 * 1000);
 });
 
 // ====================
@@ -88,7 +99,6 @@ async function findMember(guild, input) {
     }
 
     const lowerInput = input.toLowerCase();
-
     const members = await guild.members.fetch();
 
     return members.find(member =>
@@ -267,6 +277,41 @@ function hasShredsVanity(member) {
 }
 
 // ====================
+// REP NOTIFICATION
+// ====================
+
+async function sendRepNotification(member) {
+    try {
+        const channel = await member.guild.channels.fetch(
+            REP_CHANNEL_ID
+        );
+
+        if (!channel || !channel.isTextBased()) {
+            console.error(
+                `Rep channel ${REP_CHANNEL_ID} could not be found or is not text-based.`
+            );
+            return;
+        }
+
+        await channel.send({
+            content:
+                `${member} thank you for repping **/shreds**! ` +
+                `you can now enjoy your __pic perms__ ${BLACK_HEART}`,
+            allowedMentions: {
+                users: [member.id],
+                roles: [],
+                repliedUser: false
+            }
+        });
+    } catch (error) {
+        console.error(
+            'Rep notification error:',
+            error
+        );
+    }
+}
+
+// ====================
 // VANITY ROLE
 // ====================
 
@@ -277,33 +322,101 @@ async function updateVanityRole(member) {
 
     if (!role || role.managed) return;
 
+    const botMember = member.guild.members.me;
+
+    if (!botMember) return;
+
     if (
-        member.guild.members.me &&
-        role.position >= member.guild.members.me.roles.highest.position
+        role.position >= botMember.roles.highest.position
     ) {
+        console.error(
+            `Cannot manage Picture Permissions role in ${member.guild.name}: role is too high.`
+        );
         return;
     }
 
     const hasVanity = hasShredsVanity(member);
+    const alreadyHasRole = member.roles.cache.has(role.id);
 
     try {
+        // ====================
+        // MEMBER IS REPPING
+        // ====================
+
         if (hasVanity) {
-            if (!member.roles.cache.has(role.id)) {
+            if (!alreadyHasRole) {
                 await member.roles.add(
                     role,
                     'Shreds vanity detected'
                 );
+
+                console.log(
+                    `Added Picture Permissions to ${member.user.tag} for repping /shreds.`
+                );
+
+                // Send the thank-you message ONLY when
+                // the bot actually adds the role.
+                await sendRepNotification(member);
             }
-        } else {
-            if (member.roles.cache.has(role.id)) {
-                await member.roles.remove(
-                    role,
-                    'Shreds vanity removed'
+
+            return;
+        }
+
+        // ====================
+        // MEMBER IS NOT REPPING
+        // ====================
+
+        if (alreadyHasRole) {
+            await member.roles.remove(
+                role,
+                'Shreds vanity removed'
+            );
+
+            console.log(
+                `Removed Picture Permissions from ${member.user.tag} because /shreds was removed.`
+            );
+        }
+
+    } catch (error) {
+        console.error(
+            `Vanity role error for ${member.user.tag}:`,
+            error
+        );
+    }
+}
+
+// ====================
+// RECHECK ALL VANITY ROLES
+// ====================
+
+async function recheckAllVanityRoles() {
+    try {
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                await guild.members.fetch();
+
+                for (const member of guild.members.cache.values()) {
+                    if (member.user.bot) continue;
+
+                    await updateVanityRole(member);
+                }
+
+                console.log(
+                    `Vanity role recheck completed for ${guild.name}.`
+                );
+
+            } catch (error) {
+                console.error(
+                    `Vanity recheck failed for ${guild.name}:`,
+                    error
                 );
             }
         }
     } catch (error) {
-        console.error('Vanity role error:', error);
+        console.error(
+            'Global vanity recheck error:',
+            error
+        );
     }
 }
 
@@ -317,6 +430,7 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
         oldPresence?.member;
 
     if (!member) return;
+    if (member.user.bot) return;
 
     await updateVanityRole(member);
 });
@@ -357,7 +471,10 @@ client.on('guildMemberAdd', async member => {
             }
         });
     } catch (error) {
-        console.error('Welcome message error:', error);
+        console.error(
+            'Welcome message error:',
+            error
+        );
     }
 });
 
@@ -453,7 +570,10 @@ client.on('messageDelete', async deletedMessage => {
             snipes.length = MAX_SNIPE_ENTRIES;
         }
     } catch (error) {
-        console.error('Snipe storage error:', error);
+        console.error(
+            'Snipe storage error:',
+            error
+        );
     }
 });
 
@@ -717,6 +837,7 @@ client.on('interactionCreate', async interaction => {
 
             return;
         }
+
     } catch (error) {
         console.error(
             'Button interaction error:',
@@ -742,78 +863,6 @@ client.on('messageCreate', async message => {
     const command = args.shift()?.toLowerCase();
 
     if (!command) return;
-
-    // ====================
-    // PING
-    // ====================
-
-    if (command === 'ping') {
-        try {
-            const sent = await message.reply(
-                '🏓 Pinging...'
-            );
-
-            const latency =
-                sent.createdTimestamp -
-                message.createdTimestamp;
-
-            const websocketPing =
-                client.ws.ping;
-
-            await sent.edit(
-                `🏓 **Pong!**\n\n` +
-                `**Bot latency:** \`${latency}ms\`\n` +
-                `**Discord API:** \`${websocketPing}ms\``
-            );
-        } catch (error) {
-            console.error(
-                'Ping command error:',
-                error
-            );
-        }
-
-        return;
-    }
-
-    // ====================
-    // CMDS
-    // ====================
-
-    if (command === 'cmds') {
-        const embed = new EmbedBuilder()
-            .setTitle('Shreds Bot Commands')
-            .setDescription(
-                '**General**\n' +
-                '`,cmds` — Show this command list\n' +
-                '`,ping` — Check bot latency\n' +
-                '`,roles` — Show all server roles\n' +
-                '`,inrole <role>` — Show members in a role\n\n' +
-
-                '**Moderation**\n' +
-                '`,verify <user>` — Verify a member\n' +
-                '`,role <user> <role>` — Add/remove a role\n' +
-                '`,kick <user> <reason>` — Kick a member\n' +
-                '`,ban <user> <reason>` — Ban a member\n' +
-                '`,timeout <user> <duration> <reason>` — Timeout a member\n\n' +
-
-                '**Booster**\n' +
-                '`,boosterrole <colour1> <colour2> <name>` — Create a booster role\n\n' +
-
-                '**Snipe**\n' +
-                '`,s` — View the latest deleted message\n' +
-                '`,s <page>` — View a specific snipe page\n' +
-                '`,cs` — Clear snipe history'
-            )
-            .setFooter({
-                text: 'Prefix: ,'
-            });
-
-        await message.reply({
-            embeds: [embed]
-        });
-
-        return;
-    }
 
     // ====================
     // VERIFY
