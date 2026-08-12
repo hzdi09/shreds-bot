@@ -2695,4 +2695,266 @@ client.on(
                 return message.reply({
                     embeds: [
                         successEmbed(
-                            '⏱️
+                            '⏱️ Member Timed Out',
+                            [
+                                `**Member**`,
+                                `${member.user.tag}`,
+                                '',
+                                `**Duration**`,
+                                formatDuration(duration),
+                                '',
+                                `**Reason**`,
+                                reason
+                            ].join('\n')
+                        )
+                    ]
+                });
+            } catch (error) {
+                console.error(
+                    'Timeout error:',
+                    error
+                );
+
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Timeout Failed',
+                            'I could not timeout that member.'
+                        )
+                    ]
+                });
+            }
+        }
+
+        // ====================================================
+        // SNIPE
+        // IMPORTANT: ,s IS NOW AVAILABLE TO EVERYONE
+        // ====================================================
+
+        if (command === 's') {
+            let page = 1;
+
+            if (args[0]) {
+                const parsedPage =
+                    Number(args[0]);
+
+                if (
+                    !Number.isInteger(parsedPage) ||
+                    parsedPage < 1
+                ) {
+                    return message.reply({
+                        embeds: [
+                            errorEmbed(
+                                '❌ Invalid Page',
+                                'Please enter a valid snipe page.'
+                            )
+                        ]
+                    });
+                }
+
+                page = parsedPage;
+            }
+
+            const snipes =
+                snipeCache.get(
+                    message.guild.id
+                ) || [];
+
+            const entry =
+                snipes[page - 1];
+
+            if (!entry) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ No Snipe',
+                            `There is no snipe page **${page}**.`
+                        )
+                    ]
+                });
+            }
+
+            let description =
+                entry.content ||
+                '*No text content*';
+
+            description +=
+                `\n\n**Author:** ${entry.authorName}`;
+
+            description +=
+                `\n**Channel:** <#${entry.channelId}>`;
+
+            description +=
+                `\n**Deleted by:** ${entry.deleterName || 'Unknown / unavailable'}`;
+
+            description +=
+                `\n**Deleted:** <t:${Math.floor(entry.deletedAt / 1000)}:F>`;
+
+            description +=
+                `\n**Page:** ${page}/${snipes.length}`;
+
+            const embed =
+                new EmbedBuilder()
+                    .setTitle(
+                        '🕵️ Deleted Message'
+                    )
+                    .setDescription(
+                        description
+                    )
+                    .setFooter({
+                        text: 'Shreds • Snipe'
+                    })
+                    .setTimestamp();
+
+            const firstImage =
+                entry.attachments.find(
+                    file =>
+                        file.contentType?.startsWith(
+                            'image/'
+                        )
+                );
+
+            if (firstImage) {
+                embed.setImage(
+                    firstImage.url
+                );
+            }
+
+            try {
+                await message.channel.send({
+                    embeds: [embed]
+                });
+
+                const otherAttachments =
+                    entry.attachments
+                        .filter(
+                            file =>
+                                !file.contentType?.startsWith(
+                                    'image/'
+                                )
+                        )
+                        .slice(0, 10);
+
+                if (otherAttachments.length) {
+                    await message.channel.send({
+                        content:
+                            '**Attachments:**\n' +
+                            otherAttachments
+                                .map(
+                                    file =>
+                                        `[${file.name || 'Attachment'}](${file.url})`
+                                )
+                                .join('\n')
+                    });
+                }
+            } catch (error) {
+                console.error(
+                    'Snipe display error:',
+                    error
+                );
+            }
+
+            return;
+        }
+
+        // ====================================================
+        // CLEAR SNIPES
+        // ,cs REMAINS STAFF/MOD ONLY
+        // ====================================================
+
+        if (command === 'cs') {
+            if (
+                !hasPermission(
+                    message.member,
+                    PermissionsBitField.Flags.ManageMessages
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You need **Manage Messages** permission.'
+                        )
+                    ]
+                });
+            }
+
+            snipeCache.delete(
+                message.guild.id
+            );
+
+            return message.reply({
+                embeds: [
+                    successEmbed(
+                        '🧹 Snipes Cleared',
+                        'Snipe history has been cleared.'
+                    )
+                ]
+            });
+        }
+    }
+);
+
+// ============================================================
+// PROCESS ERROR HANDLING
+// ============================================================
+
+process.on(
+    'unhandledRejection',
+    error => {
+        console.error(
+            'UNHANDLED REJECTION:',
+            error
+        );
+    }
+);
+
+process.on(
+    'uncaughtException',
+    error => {
+        console.error(
+            'UNCAUGHT EXCEPTION:',
+            error
+        );
+    }
+);
+
+// ============================================================
+// TOKEN CHECK
+// ============================================================
+
+if (!process.env.DISCORD_TOKEN) {
+    console.error(
+        'DISCORD_TOKEN is missing from environment variables.'
+    );
+
+    process.exit(1);
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+
+console.log(
+    'Attempting to connect to Discord...'
+);
+
+client.login(
+    process.env.DISCORD_TOKEN
+).catch(error => {
+    console.error(
+        '========================================'
+    );
+
+    console.error(
+        'DISCORD LOGIN FAILED'
+    );
+
+    console.error(error);
+
+    console.error(
+        '========================================'
+    );
+
+    process.exit(1);
+});
