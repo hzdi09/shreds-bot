@@ -11,8 +11,7 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle,
-    WebSocketStatus
+    ButtonStyle
 } = require('discord.js');
 
 // ============================================================
@@ -41,12 +40,16 @@ const INVIS = '<:invis:1536788533669400639>';
 
 const VANITY_RECHECK_INTERVAL = 5 * 60 * 1000;
 
-// Connection recovery settings
 const CONNECTION_CHECK_INTERVAL = 30 * 1000;
 const RECONNECT_DELAY = 10 * 1000;
 const MAX_NOT_READY_TIME = 90 * 1000;
 
 const MAX_SNIPE_ENTRIES = 50;
+
+// Stores the roles removed from users by ,strip.
+// Format:
+// userId -> [roleId, roleId, roleId]
+const strippedRoles = new Map();
 
 const vanityState = new Map();
 const snipeCache = new Map();
@@ -54,7 +57,6 @@ const snipeCache = new Map();
 let reconnecting = false;
 let notReadySince = null;
 let reconnectTimer = null;
-
 
 // ============================================================
 // DISCORD CLIENT
@@ -69,7 +71,6 @@ const client = new Client({
         GatewayIntentBits.GuildPresences
     ]
 });
-
 
 // ============================================================
 // HEALTH SERVER
@@ -105,7 +106,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });
 
-
 // ============================================================
 // EMBED HELPERS
 // ============================================================
@@ -113,15 +113,32 @@ server.listen(PORT, '0.0.0.0', () => {
 function successEmbed(title, description) {
     return new EmbedBuilder()
         .setTitle(title)
-        .setDescription(description);
+        .setDescription(description)
+        .setFooter({
+            text: 'Shreds • Moderation'
+        })
+        .setTimestamp();
 }
 
 function errorEmbed(title, description) {
     return new EmbedBuilder()
         .setTitle(title)
-        .setDescription(description);
+        .setDescription(description)
+        .setFooter({
+            text: 'Shreds • Error'
+        })
+        .setTimestamp();
 }
 
+function infoEmbed(title, description) {
+    return new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setFooter({
+            text: 'Shreds'
+        })
+        .setTimestamp();
+}
 
 // ============================================================
 // FIND MEMBER
@@ -156,7 +173,6 @@ async function findMember(guild, input) {
     }
 }
 
-
 // ============================================================
 // FIND ROLE
 // ============================================================
@@ -177,7 +193,6 @@ function findRole(guild, input) {
     ) || null;
 }
 
-
 // ============================================================
 // FIND PICTURE ROLE
 // ============================================================
@@ -195,7 +210,6 @@ function findPictureRole(guild) {
             PICTURE_PERMISSIONS_ROLE_NAME.toLowerCase()
     ) || null;
 }
-
 
 // ============================================================
 // DURATION
@@ -260,7 +274,6 @@ function parseDuration(input) {
     return null;
 }
 
-
 function formatDuration(milliseconds) {
     const seconds = Math.floor(milliseconds / 1000);
 
@@ -285,7 +298,6 @@ function formatDuration(milliseconds) {
     return `${days} day${days === 1 ? '' : 's'}`;
 }
 
-
 // ============================================================
 // PERMISSIONS
 // ============================================================
@@ -293,7 +305,6 @@ function formatDuration(milliseconds) {
 function hasPermission(member, permission) {
     return member.permissions.has(permission);
 }
-
 
 // ============================================================
 // ROLE HIERARCHY
@@ -318,6 +329,44 @@ function canManageRole(message, role) {
     return true;
 }
 
+// ============================================================
+// STRIP ROLE DETECTION
+// ============================================================
+
+// These are the permissions considered "admin/staff/mod"
+// for ,strip.
+//
+// A role is stripped if it grants at least one of these.
+const STRIP_PERMISSIONS = [
+    PermissionsBitField.Flags.Administrator,
+    PermissionsBitField.Flags.ManageGuild,
+    PermissionsBitField.Flags.ManageRoles,
+    PermissionsBitField.Flags.ManageChannels,
+    PermissionsBitField.Flags.ManageMessages,
+    PermissionsBitField.Flags.ManageThreads,
+    PermissionsBitField.Flags.ModerateMembers,
+    PermissionsBitField.Flags.KickMembers,
+    PermissionsBitField.Flags.BanMembers,
+    PermissionsBitField.Flags.MentionEveryone,
+    PermissionsBitField.Flags.ManageWebhooks,
+    PermissionsBitField.Flags.ManageNicknames
+];
+
+function roleIsStaffOrModeration(role) {
+    if (!role || role.managed) return false;
+
+    return STRIP_PERMISSIONS.some(permission =>
+        role.permissions.has(permission)
+    );
+}
+
+function getStrippableRoles(member) {
+    return member.roles.cache.filter(role =>
+        role.id !== member.guild.id &&
+        !role.managed &&
+        roleIsStaffOrModeration(role)
+    );
+}
 
 // ============================================================
 // VANITY DETECTION
@@ -341,7 +390,6 @@ function hasShredsVanity(member) {
     });
 }
 
-
 // ============================================================
 // VANITY NOTIFICATION
 // ============================================================
@@ -357,9 +405,10 @@ async function sendVanityNotification(member) {
         }
 
         const embed = new EmbedBuilder()
+            .setTitle('✨ Vanity Detected')
             .setDescription(
                 `${member}\n\n` +
-                `Thank you for repping **/shreds**! ` +
+                `Thank you for repping **/shreds**!\n` +
                 `You can now enjoy __pic perms__ ${BLACK_HEART}`
             )
             .setThumbnail(
@@ -367,7 +416,11 @@ async function sendVanityNotification(member) {
                     extension: 'png',
                     size: 256
                 })
-            );
+            )
+            .setFooter({
+                text: 'Shreds • Vanity System'
+            })
+            .setTimestamp();
 
         await channel.send({
             embeds: [embed],
@@ -384,7 +437,6 @@ async function sendVanityNotification(member) {
         );
     }
 }
-
 
 // ============================================================
 // VANITY ROLE
@@ -414,7 +466,6 @@ async function updateVanityRole(member) {
     const hasVanity = hasShredsVanity(member);
     const currentlyHasRole = member.roles.cache.has(role.id);
 
-    // ADD
     if (hasVanity && !currentlyHasRole) {
         try {
             await member.roles.add(
@@ -439,7 +490,6 @@ async function updateVanityRole(member) {
         return;
     }
 
-    // REMOVE
     if (!hasVanity && currentlyHasRole) {
         try {
             await member.roles.remove(
@@ -467,7 +517,6 @@ async function updateVanityRole(member) {
         currentlyHasRole
     );
 }
-
 
 // ============================================================
 // FULL VANITY RECHECK
@@ -497,7 +546,6 @@ async function recheckGuildVanity(guild) {
         );
     }
 }
-
 
 // ============================================================
 // DISCORD CONNECTION RECOVERY
@@ -568,7 +616,6 @@ async function reconnectDiscord(reason = 'Unknown reason') {
     }
 }
 
-
 // ============================================================
 // CONNECTION WATCHDOG
 // ============================================================
@@ -620,7 +667,6 @@ setInterval(() => {
         );
     }
 }, CONNECTION_CHECK_INTERVAL);
-
 
 // ============================================================
 // READY
@@ -674,7 +720,6 @@ client.once('clientReady', async () => {
     }, VANITY_RECHECK_INTERVAL);
 });
 
-
 // ============================================================
 // DISCORD CONNECTION EVENTS
 // ============================================================
@@ -727,7 +772,6 @@ client.on('shardReady', shardId => {
     }
 });
 
-
 // ============================================================
 // PRESENCE UPDATE
 // ============================================================
@@ -752,7 +796,6 @@ client.on(
         }
     }
 );
-
 
 // ============================================================
 // MEMBER JOIN
@@ -798,15 +841,11 @@ client.on('guildMemberAdd', async member => {
     }
 });
 
-
 // ============================================================
 // FIND MESSAGE DELETER
 // ============================================================
 
-async function findMessageDeleter(
-    guild,
-    messageId
-) {
+async function findMessageDeleter(guild, messageId) {
     try {
         if (
             !guild.members.me ||
@@ -837,7 +876,6 @@ async function findMessageDeleter(
         return null;
     }
 }
-
 
 // ============================================================
 // SNIPE STORAGE
@@ -928,16 +966,11 @@ client.on(
     }
 );
 
-
 // ============================================================
 // ROLES PAGE
 // ============================================================
 
-async function showRolesPage(
-    interaction,
-    roles,
-    page
-) {
+async function showRolesPage(interaction, roles, page) {
     const perPage = 10;
 
     const totalPages = Math.max(
@@ -947,10 +980,7 @@ async function showRolesPage(
 
     page = Math.max(
         0,
-        Math.min(
-            page,
-            totalPages - 1
-        )
+        Math.min(page, totalPages - 1)
     );
 
     const start = page * perPage;
@@ -1010,7 +1040,6 @@ async function showRolesPage(
     });
 }
 
-
 // ============================================================
 // INROLE PAGE
 // ============================================================
@@ -1030,10 +1059,7 @@ async function showInRolePage(
 
     page = Math.max(
         0,
-        Math.min(
-            page,
-            totalPages - 1
-        )
+        Math.min(page, totalPages - 1)
     );
 
     const start = page * perPage;
@@ -1092,7 +1118,6 @@ async function showInRolePage(
         components: [row]
     });
 }
-
 
 // ============================================================
 // BUTTONS
@@ -1245,7 +1270,6 @@ client.on(
     }
 );
 
-
 // ============================================================
 // COMMAND HANDLER
 // ============================================================
@@ -1268,7 +1292,6 @@ client.on(
 
         if (!command) return;
 
-
         // ====================================================
         // PING
         // ====================================================
@@ -1279,13 +1302,16 @@ client.on(
                     .setTitle('🏓 Pong!')
                     .setDescription(
                         `Bot latency: **${client.ws.ping}ms**`
-                    );
+                    )
+                    .setFooter({
+                        text: 'Shreds • Connection'
+                    })
+                    .setTimestamp();
 
             return message.reply({
                 embeds: [embed]
             });
         }
-
 
         // ====================================================
         // CMDS
@@ -1297,27 +1323,39 @@ client.on(
                     .setTitle('Shreds Commands')
                     .setDescription(
                         [
-                            '`,ping` — Bot latency',
-                            '`,cmds` — Command list',
+                            '**General**',
+                            '`,ping` — Check bot latency',
+                            '`,cmds` — View this command list',
+                            '',
+                            '**Roles**',
                             '`,verify <user>` — Verify a member',
                             '`,role <user> <role>` — Toggle a role',
+                            '`,strip <user>` — Remove staff/mod permissions',
+                            '`,res <user>` — Restore previously stripped roles',
                             '`,roles` — List server roles',
                             '`,inrole <role>` — Members in a role',
                             '`,boosterrole <colour1> <colour2> <name>` — Create booster role',
+                            '',
+                            '**Moderation**',
                             '`,kick <user> <reason>` — Kick a member',
                             '`,ban <user> <reason>` — Ban a member',
                             '`,timeout <user> <duration> <reason>` — Timeout a member',
+                            '',
+                            '**Sniping**',
                             '`,s` — Snipe latest deleted message',
                             '`,s <page>` — Snipe a specific page',
-                            '`,cs` — Clear snipes'
+                            '`,cs` — Clear snipe history'
                         ].join('\n')
-                    );
+                    )
+                    .setFooter({
+                        text: 'Shreds • Command List'
+                    })
+                    .setTimestamp();
 
             return message.reply({
                 embeds: [embed]
             });
         }
-
 
         // ====================================================
         // VERIFY
@@ -1334,7 +1372,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Permission Denied',
-                            'You need **Manage Roles** permission.'
+                            'You need **Manage Roles** permission to verify members.'
                         )
                     ]
                 });
@@ -1437,11 +1475,14 @@ client.on(
                     );
                 }
 
+                // IMPORTANT:
+                // No "Role removed" message is displayed.
+
                 return message.reply({
                     embeds: [
                         successEmbed(
                             '✅ Member Verified',
-                            `${member} has been verified!`
+                            `${member} has been successfully verified.`
                         )
                     ]
                 });
@@ -1451,14 +1492,13 @@ client.on(
                 return message.reply({
                     embeds: [
                         errorEmbed(
-                            '❌ Error',
+                            '❌ Verification Failed',
                             'I could not update that member\'s roles.'
                         )
                     ]
                 });
             }
         }
-
 
         // ====================================================
         // ROLE
@@ -1562,7 +1602,7 @@ client.on(
                     return message.reply({
                         embeds: [
                             successEmbed(
-                                '✅ Role Removed',
+                                '↩️ Role Removed',
                                 `Removed **${role.name}** from ${member}.`
                             )
                         ]
@@ -1577,8 +1617,8 @@ client.on(
                 return message.reply({
                     embeds: [
                         successEmbed(
-                            '✅ Role Added',
-                            `${member} has been given **${role.name}**.`
+                            '✓ Role Added',
+                            `Added **${role.name}** to ${member}.`
                         )
                     ]
                 });
@@ -1591,7 +1631,7 @@ client.on(
                 return message.reply({
                     embeds: [
                         errorEmbed(
-                            '❌ Error',
+                            '❌ Role Update Failed',
                             'I could not update that role.'
                         )
                     ]
@@ -1599,6 +1639,296 @@ client.on(
             }
         }
 
+        // ====================================================
+        // STRIP
+        // ====================================================
+
+        if (command === 'strip') {
+            if (
+                !hasPermission(
+                    message.member,
+                    PermissionsBitField.Flags.ManageRoles
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You need **Manage Roles** permission to use `,strip`.'
+                        )
+                    ]
+                });
+            }
+
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Invalid Usage',
+                            'Usage: `,strip <user>`'
+                        )
+                    ]
+                });
+            }
+
+            const member =
+                await findMember(
+                    message.guild,
+                    args[0]
+                );
+
+            if (!member) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Member Not Found',
+                            'I could not find that member.'
+                        )
+                    ]
+                });
+            }
+
+            if (member.id === message.author.id) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Action Blocked',
+                            'You cannot strip your own staff permissions.'
+                        )
+                    ]
+                });
+            }
+
+            const botMember =
+                message.guild.members.me;
+
+            if (!botMember) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Bot Error',
+                            'I could not find my member account in this server.'
+                        )
+                    ]
+                });
+            }
+
+            const rolesToStrip =
+                getStrippableRoles(member);
+
+            const manageableRoles =
+                rolesToStrip.filter(
+                    role =>
+                        role.position <
+                        botMember.roles.highest.position
+                );
+
+            if (!manageableRoles.length) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '⚠️ Nothing to Strip',
+                            `${member} has no staff/mod/admin roles that I can manage.`
+                        )
+                    ]
+                });
+            }
+
+            try {
+                const roleIds =
+                    manageableRoles.map(
+                        role => role.id
+                    );
+
+                strippedRoles.set(
+                    member.id,
+                    roleIds
+                );
+
+                await member.roles.remove(
+                    manageableRoles,
+                    `Staff roles stripped by ${message.author.tag}`
+                );
+
+                return message.reply({
+                    embeds: [
+                        successEmbed(
+                            '🛡️ Staff Access Stripped',
+                            [
+                                `**Member:** ${member}`,
+                                `**Roles removed:** ${manageableRoles.length}`,
+                                '',
+                                manageableRoles
+                                    .map(role => `• ${role.name}`)
+                                    .join('\n'),
+                                '',
+                                'Their previous roles have been saved.',
+                                'Use `,res <user>` to restore them.'
+                            ].join('\n')
+                        )
+                    ]
+                });
+            } catch (error) {
+                console.error(
+                    'Strip command error:',
+                    error
+                );
+
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Strip Failed',
+                            'I could not remove the staff/mod roles from that member.'
+                        )
+                    ]
+                });
+            }
+        }
+
+        // ====================================================
+        // RES
+        // ====================================================
+
+        if (command === 'res') {
+            if (
+                !hasPermission(
+                    message.member,
+                    PermissionsBitField.Flags.ManageRoles
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You need **Manage Roles** permission to use `,res`.'
+                        )
+                    ]
+                });
+            }
+
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Invalid Usage',
+                            'Usage: `,res <user>`'
+                        )
+                    ]
+                });
+            }
+
+            const member =
+                await findMember(
+                    message.guild,
+                    args[0]
+                );
+
+            if (!member) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Member Not Found',
+                            'I could not find that member.'
+                        )
+                    ]
+                });
+            }
+
+            const savedRoles =
+                strippedRoles.get(member.id);
+
+            if (
+                !savedRoles ||
+                !savedRoles.length
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '⚠️ Nothing to Restore',
+                            `I do not have any saved stripped roles for ${member}.`
+                        )
+                    ]
+                });
+            }
+
+            const botMember =
+                message.guild.members.me;
+
+            if (!botMember) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Bot Error',
+                            'I could not find my member account in this server.'
+                        )
+                    ]
+                });
+            }
+
+            const rolesToRestore =
+                savedRoles
+                    .map(id =>
+                        message.guild.roles.cache.get(id)
+                    )
+                    .filter(Boolean)
+                    .filter(role =>
+                        !role.managed &&
+                        role.position <
+                        botMember.roles.highest.position
+                    );
+
+            if (!rolesToRestore.length) {
+                strippedRoles.delete(member.id);
+
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '⚠️ Nothing to Restore',
+                            'The saved roles no longer exist or are above my highest role.'
+                        )
+                    ]
+                });
+            }
+
+            try {
+                await member.roles.add(
+                    rolesToRestore,
+                    `Previously stripped roles restored by ${message.author.tag}`
+                );
+
+                strippedRoles.delete(member.id);
+
+                return message.reply({
+                    embeds: [
+                        successEmbed(
+                            '♻️ Roles Restored',
+                            [
+                                `**Member:** ${member}`,
+                                `**Roles restored:** ${rolesToRestore.length}`,
+                                '',
+                                rolesToRestore
+                                    .map(role => `• ${role.name}`)
+                                    .join('\n')
+                            ].join('\n')
+                        )
+                    ]
+                });
+            } catch (error) {
+                console.error(
+                    'Restore command error:',
+                    error
+                );
+
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Restore Failed',
+                            'I could not restore the saved roles.'
+                        )
+                    ]
+                });
+            }
+        }
 
         // ====================================================
         // ROLES
@@ -1716,7 +2046,6 @@ client.on(
                 }
             });
         }
-
 
         // ====================================================
         // INROLE
@@ -1868,7 +2197,6 @@ client.on(
                 components: [row]
             });
         }
-
 
         // ====================================================
         // BOOSTER ROLE
@@ -2042,7 +2370,7 @@ client.on(
                 return message.reply({
                     embeds: [
                         successEmbed(
-                            '✅ Booster Role Created',
+                            '💎 Booster Role Created',
                             isGradient
                                 ? `Created gradient role **${role.name}** using \`${colour1}\` → \`${colour2}\` and gave it to ${message.member}.`
                                 : `Created **${role.name}** using \`${colour1}\` and gave it to ${message.member}.\n\n⚠️ Discord did not allow the gradient style, so the role was created as a solid colour.`
@@ -2065,7 +2393,6 @@ client.on(
                 });
             }
         }
-
 
         // ====================================================
         // KICK
@@ -2138,7 +2465,13 @@ client.on(
                     embeds: [
                         successEmbed(
                             '👢 Member Kicked',
-                            `**Member:** ${member.user.tag}\n**Reason:** ${reason}`
+                            [
+                                `**Member**`,
+                                `${member.user.tag}`,
+                                '',
+                                `**Reason**`,
+                                reason
+                            ].join('\n')
                         )
                     ]
                 });
@@ -2158,7 +2491,6 @@ client.on(
                 });
             }
         }
-
 
         // ====================================================
         // BAN
@@ -2231,7 +2563,13 @@ client.on(
                     embeds: [
                         successEmbed(
                             '🔨 Member Banned',
-                            `**Member:** ${member.user.tag}\n**Reason:** ${reason}`
+                            [
+                                `**Member**`,
+                                `${member.user.tag}`,
+                                '',
+                                `**Reason**`,
+                                reason
+                            ].join('\n')
                         )
                     ]
                 });
@@ -2251,7 +2589,6 @@ client.on(
                 });
             }
         }
-
 
         // ====================================================
         // TIMEOUT
@@ -2358,272 +2695,4 @@ client.on(
                 return message.reply({
                     embeds: [
                         successEmbed(
-                            '⏱️ Member Timed Out',
-                            `**Member:** ${member.user.tag}\n**Duration:** ${formatDuration(duration)}\n**Reason:** ${reason}`
-                        )
-                    ]
-                });
-            } catch (error) {
-                console.error(
-                    'Timeout error:',
-                    error
-                );
-
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Timeout Failed',
-                            'I could not timeout that member.'
-                        )
-                    ]
-                });
-            }
-        }
-
-
-        // ====================================================
-        // SNIPE
-        // ====================================================
-
-        if (command === 's') {
-            if (
-                !hasPermission(
-                    message.member,
-                    PermissionsBitField.Flags.ManageMessages
-                )
-            ) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Permission Denied',
-                            'You need **Manage Messages** permission.'
-                        )
-                    ]
-                });
-            }
-
-            let page = 1;
-
-            if (args[0]) {
-                const parsedPage =
-                    Number(args[0]);
-
-                if (
-                    !Number.isInteger(parsedPage) ||
-                    parsedPage < 1
-                ) {
-                    return message.reply({
-                        embeds: [
-                            errorEmbed(
-                                '❌ Invalid Page',
-                                'Please enter a valid snipe page.'
-                            )
-                        ]
-                    });
-                }
-
-                page = parsedPage;
-            }
-
-            const snipes =
-                snipeCache.get(
-                    message.guild.id
-                ) || [];
-
-            const entry =
-                snipes[page - 1];
-
-            if (!entry) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ No Snipe',
-                            `There is no snipe page **${page}**.`
-                        )
-                    ]
-                });
-            }
-
-            let description =
-                entry.content ||
-                '*No text content*';
-
-            description +=
-                `\n\n**Author:** ${entry.authorName}`;
-
-            description +=
-                `\n**Channel:** <#${entry.channelId}>`;
-
-            description +=
-                `\n**Deleted by:** ${entry.deleterName || 'Unknown / unavailable'}`;
-
-            description +=
-                `\n**Deleted:** <t:${Math.floor(entry.deletedAt / 1000)}:F>`;
-
-            description +=
-                `\n**Page:** ${page}/${snipes.length}`;
-
-            const embed =
-                new EmbedBuilder()
-                    .setTitle(
-                        'Deleted Message'
-                    )
-                    .setDescription(
-                        description
-                    );
-
-            const firstImage =
-                entry.attachments.find(
-                    file =>
-                        file.contentType?.startsWith(
-                            'image/'
-                        )
-                );
-
-            if (firstImage) {
-                embed.setImage(
-                    firstImage.url
-                );
-            }
-
-            try {
-                await message.channel.send({
-                    embeds: [embed]
-                });
-
-                const otherAttachments =
-                    entry.attachments
-                        .filter(
-                            file =>
-                                !file.contentType?.startsWith(
-                                    'image/'
-                                )
-                        )
-                        .slice(0, 10);
-
-                if (otherAttachments.length) {
-                    await message.channel.send({
-                        content:
-                            '**Attachments:**\n' +
-                            otherAttachments
-                                .map(
-                                    file =>
-                                        `[${file.name || 'Attachment'}](${file.url})`
-                                )
-                                .join('\n')
-                    });
-                }
-            } catch (error) {
-                console.error(
-                    'Snipe display error:',
-                    error
-                );
-            }
-
-            return;
-        }
-
-
-        // ====================================================
-        // CLEAR SNIPES
-        // ====================================================
-
-        if (command === 'cs') {
-            if (
-                !hasPermission(
-                    message.member,
-                    PermissionsBitField.Flags.ManageMessages
-                )
-            ) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Permission Denied',
-                            'You need **Manage Messages** permission.'
-                        )
-                    ]
-                });
-            }
-
-            snipeCache.delete(
-                message.guild.id
-            );
-
-            return message.reply({
-                embeds: [
-                    successEmbed(
-                        '✅ Snipes Cleared',
-                        'Snipe history has been cleared.'
-                    )
-                ]
-            });
-        }
-    }
-);
-
-
-// ============================================================
-// PROCESS ERROR HANDLING
-// ============================================================
-
-process.on(
-    'unhandledRejection',
-    error => {
-        console.error(
-            'UNHANDLED REJECTION:',
-            error
-        );
-    }
-);
-
-process.on(
-    'uncaughtException',
-    error => {
-        console.error(
-            'UNCAUGHT EXCEPTION:',
-            error
-        );
-    }
-);
-
-
-// ============================================================
-// TOKEN CHECK
-// ============================================================
-
-if (!process.env.DISCORD_TOKEN) {
-    console.error(
-        'DISCORD_TOKEN is missing from environment variables.'
-    );
-
-    process.exit(1);
-}
-
-
-// ============================================================
-// LOGIN
-// ============================================================
-
-console.log(
-    'Attempting to connect to Discord...'
-);
-
-client.login(
-    process.env.DISCORD_TOKEN
-).catch(error => {
-    console.error(
-        '========================================'
-    );
-
-    console.error(
-        'DISCORD LOGIN FAILED'
-    );
-
-    console.error(error);
-
-    console.error(
-        '========================================'
-    );
-
-    process.exit(1);
-});
+                            '⏱️
