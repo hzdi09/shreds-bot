@@ -24,10 +24,8 @@ const {
 const PORT = process.env.PORT || 3000;
 const PREFIX = ',';
 
-// /uptime uses Discord's timestamp system.
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
-// Only these users can use ,strip.
 const STRIP_ALLOWED_USERS = new Set([
     '1375128465430417610',
     '324402906813956096',
@@ -59,10 +57,7 @@ const MAX_NOT_READY_TIME = 90 * 1000;
 
 const MAX_SNIPE_ENTRIES = 50;
 
-// Stores roles removed by ,strip.
-// userId -> [roleId, roleId, roleId]
 const strippedRoles = new Map();
-
 const vanityState = new Map();
 const snipeCache = new Map();
 
@@ -449,7 +444,6 @@ async function sendVanityNotification(member) {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('✨ Vanity Detected')
             .setDescription(
                 `${member}\n\n` +
                 `Thank you for repping **/shreds**!\n` +
@@ -462,7 +456,7 @@ async function sendVanityNotification(member) {
                 })
             )
             .setFooter({
-                text: 'Shreds • Vanity System'
+                text: 'Shreds • Vanity'
             })
             .setTimestamp();
 
@@ -726,7 +720,6 @@ client.once('clientReady', async () => {
     console.log('Discord connection READY');
     console.log('========================================');
 
-    // Register /uptime automatically.
     await registerSlashCommands();
 
     console.log('Running startup vanity check...');
@@ -1198,9 +1191,9 @@ client.on(
                         new EmbedBuilder()
                             .setTitle('⏱️ Shreds Uptime')
                             .setDescription(
-                                `**Uptime:** ${uptimeText}\n\n` +
-                                `Online since <t:${BOT_START_TIME}:F>\n` +
-                                `That's <t:${BOT_START_TIME}:R>.`
+                                `**Uptime**\n${uptimeText}\n\n` +
+                                `**Online Since**\n<t:${BOT_START_TIME}:F>\n` +
+                                `<t:${BOT_START_TIME}:R>`
                             )
                             .setFooter({
                                 text: 'Shreds • Uptime'
@@ -1225,8 +1218,12 @@ client.on(
 
             if (!embed) {
                 return interaction.reply({
-                    content:
-                        '❌ This menu is no longer valid.',
+                    embeds: [
+                        errorEmbed(
+                            '❌ Menu Unavailable',
+                            'This menu is no longer valid.'
+                        )
+                    ],
                     ephemeral: true
                 });
             }
@@ -1298,8 +1295,12 @@ client.on(
 
                 if (!role) {
                     return interaction.reply({
-                        content:
-                            '❌ That role no longer exists.',
+                        embeds: [
+                            errorEmbed(
+                                '❌ Role Not Found',
+                                'That role no longer exists.'
+                            )
+                        ],
                         ephemeral: true
                     });
                 }
@@ -1352,8 +1353,12 @@ client.on(
                 !interaction.deferred
             ) {
                 await interaction.reply({
-                    content:
-                        '❌ Something went wrong.',
+                    embeds: [
+                        errorEmbed(
+                            '❌ Interaction Failed',
+                            'Something went wrong while updating this menu.'
+                        )
+                    ],
                     ephemeral: true
                 }).catch(() => {});
             }
@@ -1392,7 +1397,8 @@ client.on(
                 new EmbedBuilder()
                     .setTitle('🏓 Pong!')
                     .setDescription(
-                        `Bot latency: **${client.ws.ping}ms**`
+                        `**Bot Latency**\n${client.ws.ping}ms\n\n` +
+                        `**Status**\nConnected and operational.`
                     )
                     .setFooter({
                         text: 'Shreds • Connection'
@@ -1414,31 +1420,31 @@ client.on(
                     .setTitle('Shreds Commands')
                     .setDescription(
                         [
-                            '**General**',
+                            '**GENERAL**',
                             '`,ping` — Check bot latency',
-                            '`,cmds` — View this command list',
+                            '`,cmds` — View all available commands',
                             '',
-                            '**Roles**',
+                            '**ROLES**',
                             '`,verify <user>` — Verify a member',
                             '`,role <user> <role>` — Toggle a role',
                             '`,strip <user>` — Remove staff/mod permissions',
                             '`,res <user>` — Restore previously stripped roles',
                             '`,roles` — List server roles',
-                            '`,inrole <role>` — Members in a role',
-                            '`,boosterrole <colour1> <colour2> <name>` — Create booster role',
+                            '`,inrole <role>` — View members in a role',
+                            '`,boosterrole <colour1> <colour2> <name>` — Create a booster role',
                             '',
-                            '**Moderation**',
+                            '**MODERATION**',
                             '`,kick <user> <reason>` — Kick a member',
                             '`,ban <user> <reason>` — Ban a member',
                             '`,timeout <user> <duration> <reason>` — Timeout a member',
                             '',
-                            '**Sniping**',
-                            '`,s` — Snipe latest deleted message',
-                            '`,s <page>` — Snipe a specific page',
+                            '**SNIPING**',
+                            '`,s` — View the latest deleted message',
+                            '`,s <page>` — View a specific deleted message',
                             '`,cs` — Clear snipe history',
                             '',
-                            '**Slash Commands**',
-                            '`/uptime` — See how long the bot has been online'
+                            '**SLASH COMMANDS**',
+                            '`/uptime` — See how long Shreds has been online'
                         ].join('\n')
                     )
                     .setFooter({
@@ -1477,7 +1483,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,verify <user>`'
+                            'Use `,verify <user>` to verify a member.'
                         )
                     ]
                 });
@@ -1573,7 +1579,7 @@ client.on(
                     embeds: [
                         successEmbed(
                             '✅ Member Verified',
-                            `${member} has been successfully verified.`
+                            `Successfully verified ${member}.\n\n**Role:** ${verifiedRole}`
                         )
                     ]
                 });
@@ -1606,7 +1612,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Permission Denied',
-                            'You need **Manage Roles** permission.'
+                            'You need **Manage Roles** permission to use this command.'
                         )
                     ]
                 });
@@ -1617,7 +1623,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,role <user> <role>`'
+                            'Use `,role <user> <role>`.\n\nExample: `,role @User Moderator`'
                         )
                     ]
                 });
@@ -1694,7 +1700,15 @@ client.on(
                         embeds: [
                             successEmbed(
                                 '↩️ Role Removed',
-                                `Removed **${role.name}** from ${member}.`
+                                [
+                                    `**Member**`,
+                                    `${member}`,
+                                    '',
+                                    `**Role**`,
+                                    `\`${role.name}\``,
+                                    '',
+                                    'The role has been removed successfully.'
+                                ].join('\n')
                             )
                         ]
                     });
@@ -1709,7 +1723,15 @@ client.on(
                     embeds: [
                         successEmbed(
                             '✓ Role Added',
-                            `Added **${role.name}** to ${member}.`
+                            [
+                                `**Member**`,
+                                `${member}`,
+                                '',
+                                `**Role**`,
+                                `\`${role.name}\``,
+                                '',
+                                'The role has been added successfully.'
+                            ].join('\n')
                         )
                     ]
                 });
@@ -1723,7 +1745,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Role Update Failed',
-                            'I could not update that role.'
+                            'I could not update that role. Check my permissions and role hierarchy.'
                         )
                     ]
                 });
@@ -1732,7 +1754,6 @@ client.on(
 
         // ====================================================
         // STRIP
-        // ONLY THE THREE WHITELISTED USERS CAN USE THIS
         // ====================================================
 
         if (command === 'strip') {
@@ -1769,7 +1790,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,strip <user>`'
+                            'Use `,strip <user>` to remove staff/mod permissions.'
                         )
                     ]
                 });
@@ -1859,8 +1880,11 @@ client.on(
                         successEmbed(
                             '🛡️ Staff Access Stripped',
                             [
-                                `**Member:** ${member}`,
-                                `**Roles removed:** ${manageableRoles.length}`,
+                                `**Member**`,
+                                `${member}`,
+                                '',
+                                `**Roles Removed**`,
+                                `${manageableRoles.length}`,
                                 '',
                                 manageableRoles
                                     .map(role => `• ${role.name}`)
@@ -1915,7 +1939,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,res <user>`'
+                            'Use `,res <user>` to restore previously stripped roles.'
                         )
                     ]
                 });
@@ -2007,8 +2031,11 @@ client.on(
                         successEmbed(
                             '♻️ Roles Restored',
                             [
-                                `**Member:** ${member}`,
-                                `**Roles restored:** ${rolesToRestore.length}`,
+                                `**Member**`,
+                                `${member}`,
+                                '',
+                                `**Roles Restored**`,
+                                `${rolesToRestore.length}`,
                                 '',
                                 rolesToRestore
                                     .map(role => `• ${role.name}`)
@@ -2092,9 +2119,7 @@ client.on(
 
             const embed =
                 new EmbedBuilder()
-                    .setTitle(
-                        'Server Roles'
-                    )
+                    .setTitle('Server Roles')
                     .setDescription(
                         roleList
                     )
@@ -2362,7 +2387,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,boosterrole <colour1> <colour2> <name>`\nExample: `,boosterrole 787878 020105 Hadi`'
+                            'Use `,boosterrole <colour1> <colour2> <name>`.\n\nExample: `,boosterrole 787878 020105 Hadi`'
                         )
                     ]
                 });
@@ -2476,8 +2501,26 @@ client.on(
                         successEmbed(
                             '💎 Booster Role Created',
                             isGradient
-                                ? `Created gradient role **${role.name}** using \`${colour1}\` → \`${colour2}\` and gave it to ${message.member}.`
-                                : `Created **${role.name}** using \`${colour1}\` and gave it to ${message.member}.\n\n⚠️ Discord did not allow the gradient style, so the role was created as a solid colour.`
+                                ? [
+                                    `**Role**`,
+                                    `\`${role.name}\``,
+                                    '',
+                                    `**Colours**`,
+                                    `\`${colour1}\` → \`${colour2}\``,
+                                    '',
+                                    `The role has been created and assigned to ${message.member}.`
+                                ].join('\n')
+                                : [
+                                    `**Role**`,
+                                    `\`${role.name}\``,
+                                    '',
+                                    `**Colour**`,
+                                    `\`${colour1}\``,
+                                    '',
+                                    `The role has been created and assigned to ${message.member}.`,
+                                    '',
+                                    '⚠️ Discord did not allow the gradient style, so the role was created as a solid colour.'
+                                ].join('\n')
                         )
                     ]
                 });
@@ -2524,7 +2567,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,kick <member> <reason>`'
+                            'Use `,kick <member> <reason>`.'
                         )
                     ]
                 });
@@ -2622,7 +2665,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,ban <member> <reason>`'
+                            'Use `,ban <member> <reason>`.'
                         )
                     ]
                 });
@@ -2720,7 +2763,7 @@ client.on(
                     embeds: [
                         errorEmbed(
                             '❌ Invalid Usage',
-                            'Usage: `,timeout <member> <duration> <reason>`\n\nExamples: `20s`, `5m`, `2h`, `7d`'
+                            'Use `,timeout <member> <duration> <reason>`.\n\nExamples: `20s`, `5m`, `2h`, `7d`'
                         )
                     ]
                 });
@@ -2832,7 +2875,6 @@ client.on(
 
         // ====================================================
         // SNIPE
-        // ,s IS AVAILABLE TO EVERYONE
         // ====================================================
 
         if (command === 's') {
@@ -2990,7 +3032,7 @@ client.on(
                 embeds: [
                     successEmbed(
                         '🧹 Snipes Cleared',
-                        'Snipe history has been cleared.'
+                        'Snipe history has been cleared successfully.'
                     )
                 ]
             });
