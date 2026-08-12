@@ -11,7 +11,10 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    REST,
+    Routes,
+    SlashCommandBuilder
 } = require('discord.js');
 
 // ============================================================
@@ -20,6 +23,16 @@ const {
 
 const PORT = process.env.PORT || 3000;
 const PREFIX = ',';
+
+// /uptime uses Discord's timestamp system.
+const BOT_START_TIME = Math.floor(Date.now() / 1000);
+
+// Only these users can use ,strip.
+const STRIP_ALLOWED_USERS = new Set([
+    '1375128465430417610',
+    '324402906813956096',
+    '1510773261812760727'
+]);
 
 const VERIFIED_ROLE_ID = '1516790671611265054';
 const UNVERIFIED_ROLE_ID = '1516790078251204798';
@@ -46,8 +59,7 @@ const MAX_NOT_READY_TIME = 90 * 1000;
 
 const MAX_SNIPE_ENTRIES = 50;
 
-// Stores the roles removed from users by ,strip.
-// Format:
+// Stores roles removed by ,strip.
 // userId -> [roleId, roleId, roleId]
 const strippedRoles = new Map();
 
@@ -71,6 +83,42 @@ const client = new Client({
         GatewayIntentBits.GuildPresences
     ]
 });
+
+// ============================================================
+// SLASH COMMAND REGISTRATION
+// ============================================================
+
+async function registerSlashCommands() {
+    if (!client.user) {
+        console.error('Cannot register slash commands: bot user unavailable.');
+        return;
+    }
+
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('uptime')
+            .setDescription('See how long Shreds has been online.')
+            .toJSON()
+    ];
+
+    const rest = new REST({ version: '10' })
+        .setToken(process.env.DISCORD_TOKEN);
+
+    try {
+        console.log('Registering slash commands...');
+
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            {
+                body: commands
+            }
+        );
+
+        console.log('Successfully registered /uptime.');
+    } catch (error) {
+        console.error('Slash command registration failed:', error);
+    }
+}
 
 // ============================================================
 // HEALTH SERVER
@@ -333,10 +381,6 @@ function canManageRole(message, role) {
 // STRIP ROLE DETECTION
 // ============================================================
 
-// These are the permissions considered "admin/staff/mod"
-// for ,strip.
-//
-// A role is stripped if it grants at least one of these.
 const STRIP_PERMISSIONS = [
     PermissionsBitField.Flags.Administrator,
     PermissionsBitField.Flags.ManageGuild,
@@ -681,6 +725,9 @@ client.once('clientReady', async () => {
     console.log(`Guilds: ${client.guilds.cache.size}`);
     console.log('Discord connection READY');
     console.log('========================================');
+
+    // Register /uptime automatically.
+    await registerSlashCommands();
 
     console.log('Running startup vanity check...');
 
@@ -1120,12 +1167,56 @@ async function showInRolePage(
 }
 
 // ============================================================
-// BUTTONS
+// BUTTONS + SLASH COMMANDS
 // ============================================================
 
 client.on(
     'interactionCreate',
     async interaction => {
+
+        // ====================================================
+        // /UPTIME
+        // ====================================================
+
+        if (interaction.isChatInputCommand()) {
+            if (interaction.commandName === 'uptime') {
+
+                const uptimeSeconds =
+                    Math.max(
+                        0,
+                        Math.floor(Date.now() / 1000) -
+                        BOT_START_TIME
+                    );
+
+                const uptimeText =
+                    formatDuration(
+                        uptimeSeconds * 1000
+                    );
+
+                return interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('⏱️ Shreds Uptime')
+                            .setDescription(
+                                `**Uptime:** ${uptimeText}\n\n` +
+                                `Online since <t:${BOT_START_TIME}:F>\n` +
+                                `That's <t:${BOT_START_TIME}:R>.`
+                            )
+                            .setFooter({
+                                text: 'Shreds • Uptime'
+                            })
+                            .setTimestamp()
+                    ]
+                });
+            }
+
+            return;
+        }
+
+        // ====================================================
+        // BUTTONS
+        // ====================================================
+
         if (!interaction.isButton()) return;
 
         try {
@@ -1344,7 +1435,10 @@ client.on(
                             '**Sniping**',
                             '`,s` — Snipe latest deleted message',
                             '`,s <page>` — Snipe a specific page',
-                            '`,cs` — Clear snipe history'
+                            '`,cs` — Clear snipe history',
+                            '',
+                            '**Slash Commands**',
+                            '`/uptime` — See how long the bot has been online'
                         ].join('\n')
                     )
                     .setFooter({
@@ -1474,9 +1568,6 @@ client.on(
                         'Member verified'
                     );
                 }
-
-                // IMPORTANT:
-                // No "Role removed" message is displayed.
 
                 return message.reply({
                     embeds: [
@@ -1641,9 +1732,22 @@ client.on(
 
         // ====================================================
         // STRIP
+        // ONLY THE THREE WHITELISTED USERS CAN USE THIS
         // ====================================================
 
         if (command === 'strip') {
+
+            if (!STRIP_ALLOWED_USERS.has(message.author.id)) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You are not authorised to use `,strip`.'
+                        )
+                    ]
+                });
+            }
+
             if (
                 !hasPermission(
                     message.member,
@@ -2728,7 +2832,7 @@ client.on(
 
         // ====================================================
         // SNIPE
-        // IMPORTANT: ,s IS NOW AVAILABLE TO EVERYONE
+        // ,s IS AVAILABLE TO EVERYONE
         // ====================================================
 
         if (command === 's') {
@@ -2859,7 +2963,6 @@ client.on(
 
         // ====================================================
         // CLEAR SNIPES
-        // ,cs REMAINS STAFF/MOD ONLY
         // ====================================================
 
         if (command === 'cs') {
