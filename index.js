@@ -26,6 +26,8 @@ const PREFIX = ',';
 
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
+// Existing 3-user whitelist.
+// These users are authorised to use both ,strip and ,res.
 const STRIP_ALLOWED_USERS = new Set([
     '1375128465430417610',
     '324402906813956096',
@@ -57,6 +59,9 @@ const MAX_NOT_READY_TIME = 90 * 1000;
 
 const MAX_SNIPE_ENTRIES = 50;
 
+// Discord bulk delete limit.
+const MAX_PURGE_AMOUNT = 100;
+
 const strippedRoles = new Map();
 const vanityState = new Map();
 const snipeCache = new Map();
@@ -85,14 +90,18 @@ const client = new Client({
 
 async function registerSlashCommands() {
     if (!client.user) {
-        console.error('Cannot register slash commands: bot user unavailable.');
+        console.error(
+            'Cannot register slash commands: bot user unavailable.'
+        );
         return;
     }
 
     const commands = [
         new SlashCommandBuilder()
             .setName('uptime')
-            .setDescription('See how long Shreds has been online.')
+            .setDescription(
+                'See how long Shreds has been online.'
+            )
             .toJSON()
     ];
 
@@ -109,9 +118,14 @@ async function registerSlashCommands() {
             }
         );
 
-        console.log('Successfully registered /uptime.');
+        console.log(
+            'Successfully registered /uptime.'
+        );
     } catch (error) {
-        console.error('Slash command registration failed:', error);
+        console.error(
+            'Slash command registration failed:',
+            error
+        );
     }
 }
 
@@ -122,32 +136,49 @@ async function registerSlashCommands() {
 const server = http.createServer((req, res) => {
     const url = req.url || '/';
 
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader(
+        'Content-Type',
+        'application/json'
+    );
 
     if (url === '/health') {
         const ready = client.isReady();
 
-        res.writeHead(ready ? 200 : 503);
+        res.writeHead(
+            ready ? 200 : 503
+        );
 
-        return res.end(JSON.stringify({
-            status: ready ? 'online' : 'offline',
-            discord: ready,
-            uptime: process.uptime(),
-            timestamp: new Date().toISOString()
-        }));
+        return res.end(
+            JSON.stringify({
+                status: ready ? 'online' : 'offline',
+                discord: ready,
+                uptime: process.uptime(),
+                timestamp: new Date().toISOString()
+            })
+        );
     }
 
     res.writeHead(200);
 
-    res.end(JSON.stringify({
-        service: 'Shreds bot',
-        discord: client.isReady() ? 'online' : 'offline'
-    }));
+    res.end(
+        JSON.stringify({
+            service: 'Shreds bot',
+            discord: client.isReady()
+                ? 'online'
+                : 'offline'
+        })
+    );
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`HTTP server listening on port ${PORT}`);
-});
+server.listen(
+    PORT,
+    '0.0.0.0',
+    () => {
+        console.log(
+            `HTTP server listening on port ${PORT}`
+        );
+    }
+);
 
 // ============================================================
 // EMBED HELPERS
@@ -190,28 +221,40 @@ function infoEmbed(title, description) {
 async function findMember(guild, input) {
     if (!input) return null;
 
-    const cleanInput = input.replace(/[<@!>]/g, '');
+    const cleanInput =
+        input.replace(/[<@!>]/g, '');
 
     if (/^\d{17,20}$/.test(cleanInput)) {
         try {
-            return await guild.members.fetch(cleanInput);
+            return await guild.members.fetch(
+                cleanInput
+            );
         } catch {
             return null;
         }
     }
 
-    const lowerInput = input.toLowerCase();
+    const lowerInput =
+        input.toLowerCase();
 
     try {
-        const members = await guild.members.fetch();
+        const members =
+            await guild.members.fetch();
 
         return members.find(member =>
-            member.user.username.toLowerCase() === lowerInput ||
-            member.displayName.toLowerCase() === lowerInput ||
-            member.user.tag.toLowerCase() === lowerInput
+            member.user.username
+                .toLowerCase() === lowerInput ||
+            member.displayName
+                .toLowerCase() === lowerInput ||
+            member.user.tag
+                .toLowerCase() === lowerInput
         ) || null;
     } catch (error) {
-        console.error('Member search error:', error);
+        console.error(
+            'Member search error:',
+            error
+        );
+
         return null;
     }
 }
@@ -223,16 +266,24 @@ async function findMember(guild, input) {
 function findRole(guild, input) {
     if (!input) return null;
 
-    const cleanInput = input.replace(/[<@&>]/g, '');
+    const cleanInput =
+        input.replace(/[<@&>]/g, '');
 
     if (/^\d{17,20}$/.test(cleanInput)) {
-        return guild.roles.cache.get(cleanInput) || null;
+        return (
+            guild.roles.cache.get(
+                cleanInput
+            ) || null
+        );
     }
 
-    const lowerInput = input.toLowerCase();
+    const lowerInput =
+        input.toLowerCase();
 
     return guild.roles.cache.find(
-        role => role.name.toLowerCase() === lowerInput
+        role =>
+            role.name.toLowerCase() ===
+            lowerInput
     ) || null;
 }
 
@@ -241,16 +292,18 @@ function findRole(guild, input) {
 // ============================================================
 
 function findPictureRole(guild) {
-    const role = guild.roles.cache.get(
-        PICTURE_PERMISSIONS_ROLE_ID
-    );
+    const role =
+        guild.roles.cache.get(
+            PICTURE_PERMISSIONS_ROLE_ID
+        );
 
     if (role) return role;
 
     return guild.roles.cache.find(
         role =>
             role.name.toLowerCase() ===
-            PICTURE_PERMISSIONS_ROLE_NAME.toLowerCase()
+            PICTURE_PERMISSIONS_ROLE_NAME
+                .toLowerCase()
     ) || null;
 }
 
@@ -261,110 +314,172 @@ function findPictureRole(guild) {
 function parseDuration(input) {
     if (!input) return null;
 
-    const value = input.toLowerCase().trim();
+    const value =
+        input.toLowerCase().trim();
 
-    const match = value.match(
-        /^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/
-    );
+    const match =
+        value.match(
+            /^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/
+        );
 
     if (!match) return null;
 
-    const number = Number(match[1]);
-    const unit = match[2];
+    const number =
+        Number(match[1]);
 
-    if (!Number.isFinite(number) || number <= 0) {
+    const unit =
+        match[2];
+
+    if (
+        !Number.isFinite(number) ||
+        number <= 0
+    ) {
         return null;
     }
 
-    if ([
-        's',
-        'sec',
-        'secs',
-        'second',
-        'seconds'
-    ].includes(unit)) {
+    if (
+        [
+            's',
+            'sec',
+            'secs',
+            'second',
+            'seconds'
+        ].includes(unit)
+    ) {
         return number * 1000;
     }
 
-    if ([
-        'm',
-        'min',
-        'mins',
-        'minute',
-        'minutes'
-    ].includes(unit)) {
+    if (
+        [
+            'm',
+            'min',
+            'mins',
+            'minute',
+            'minutes'
+        ].includes(unit)
+    ) {
         return number * 60 * 1000;
     }
 
-    if ([
-        'h',
-        'hr',
-        'hrs',
-        'hour',
-        'hours'
-    ].includes(unit)) {
+    if (
+        [
+            'h',
+            'hr',
+            'hrs',
+            'hour',
+            'hours'
+        ].includes(unit)
+    ) {
         return number * 60 * 60 * 1000;
     }
 
-    if ([
-        'd',
-        'day',
-        'days'
-    ].includes(unit)) {
-        return number * 24 * 60 * 60 * 1000;
+    if (
+        [
+            'd',
+            'day',
+            'days'
+        ].includes(unit)
+    ) {
+        return number *
+            24 *
+            60 *
+            60 *
+            1000;
     }
 
     return null;
 }
 
 function formatDuration(milliseconds) {
-    const seconds = Math.floor(milliseconds / 1000);
+    const seconds =
+        Math.floor(
+            milliseconds / 1000
+        );
 
     if (seconds < 60) {
-        return `${seconds} second${seconds === 1 ? '' : 's'}`;
+        return `${seconds} second${
+            seconds === 1 ? '' : 's'
+        }`;
     }
 
-    const minutes = Math.floor(seconds / 60);
+    const minutes =
+        Math.floor(seconds / 60);
 
     if (minutes < 60) {
-        return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+        return `${minutes} minute${
+            minutes === 1 ? '' : 's'
+        }`;
     }
 
-    const hours = Math.floor(minutes / 60);
+    const hours =
+        Math.floor(minutes / 60);
 
     if (hours < 24) {
-        return `${hours} hour${hours === 1 ? '' : 's'}`;
+        return `${hours} hour${
+            hours === 1 ? '' : 's'
+        }`;
     }
 
-    const days = Math.floor(hours / 24);
+    const days =
+        Math.floor(hours / 24);
 
-    return `${days} day${days === 1 ? '' : 's'}`;
+    return `${days} day${
+        days === 1 ? '' : 's'
+    }`;
 }
 
 // ============================================================
 // PERMISSIONS
 // ============================================================
 
-function hasPermission(member, permission) {
-    return member.permissions.has(permission);
+function hasPermission(
+    member,
+    permission
+) {
+    return member.permissions.has(
+        permission
+    );
+}
+
+// ============================================================
+// STRIP / RESTORE WHITELIST
+// ============================================================
+
+function isStripRestoreWhitelisted(
+    member
+) {
+    if (!member) return false;
+
+    return STRIP_ALLOWED_USERS.has(
+        member.id
+    );
 }
 
 // ============================================================
 // ROLE HIERARCHY
 // ============================================================
 
-function canManageRole(message, role) {
-    const botMember = message.guild.members.me;
+function canManageRole(
+    message,
+    role
+) {
+    const botMember =
+        message.guild.members.me;
 
     if (!botMember) return false;
 
-    if (role.position >= botMember.roles.highest.position) {
+    if (
+        role.position >=
+        botMember.roles.highest.position
+    ) {
         return false;
     }
 
     if (
-        message.guild.ownerId !== message.member.id &&
-        role.position >= message.member.roles.highest.position
+        message.guild.ownerId !==
+            message.member.id &&
+        role.position >=
+            message.member.roles.highest.position
     ) {
         return false;
     }
@@ -392,18 +507,27 @@ const STRIP_PERMISSIONS = [
 ];
 
 function roleIsStaffOrModeration(role) {
-    if (!role || role.managed) return false;
+    if (!role || role.managed) {
+        return false;
+    }
 
-    return STRIP_PERMISSIONS.some(permission =>
-        role.permissions.has(permission)
+    // A role is considered a staff/mod/admin role
+    // when it directly grants at least one
+    // moderation/staff permission.
+    return STRIP_PERMISSIONS.some(
+        permission =>
+            role.permissions.has(permission)
     );
 }
 
 function getStrippableRoles(member) {
-    return member.roles.cache.filter(role =>
-        role.id !== member.guild.id &&
-        !role.managed &&
-        roleIsStaffOrModeration(role)
+    if (!member) return [];
+
+    return member.roles.cache.filter(
+        role =>
+            role.id !== member.guild.id &&
+            !role.managed &&
+            roleIsStaffOrModeration(role)
     );
 }
 
@@ -414,51 +538,70 @@ function getStrippableRoles(member) {
 function hasShredsVanity(member) {
     if (!member.presence) return false;
 
-    return member.presence.activities.some(activity => {
-        if (activity.type !== ActivityType.Custom) {
-            return false;
+    return member.presence.activities.some(
+        activity => {
+            if (
+                activity.type !==
+                ActivityType.Custom
+            ) {
+                return false;
+            }
+
+            const status =
+                activity.state || '';
+
+            const lowerStatus =
+                status.toLowerCase();
+
+            return (
+                lowerStatus.includes(
+                    '/shreds'
+                ) ||
+                lowerStatus.includes(
+                    '.gg/shreds'
+                )
+            );
         }
-
-        const status = activity.state || '';
-        const lowerStatus = status.toLowerCase();
-
-        return (
-            lowerStatus.includes('/shreds') ||
-            lowerStatus.includes('.gg/shreds')
-        );
-    });
+    );
 }
 
 // ============================================================
 // VANITY NOTIFICATION
 // ============================================================
 
-async function sendVanityNotification(member) {
+async function sendVanityNotification(
+    member
+) {
     try {
-        const channel = await member.guild.channels.fetch(
-            VANITY_LOG_CHANNEL_ID
-        );
+        const channel =
+            await member.guild.channels.fetch(
+                VANITY_LOG_CHANNEL_ID
+            );
 
-        if (!channel || !channel.isTextBased()) {
+        if (
+            !channel ||
+            !channel.isTextBased()
+        ) {
             return;
         }
 
-        const embed = new EmbedBuilder()
-            .setDescription(
-                `${member}\n\n` +
-                `Thank you for repping **/shreds**!\n` +
-                `You can now enjoy __pic perms__ ${BLACK_HEART}`
-            )
-            .setThumbnail(
-                member.user.displayAvatarURL({
-                    extension: 'png',
-                    size: 256
+        const embed =
+            new EmbedBuilder()
+                .setDescription(
+                    `${member}\n\n` +
+                    `Thank you for repping **/shreds**!\n` +
+                    `You can now enjoy __pic perms__ ${BLACK_HEART}`
+                )
+                .setThumbnail(
+                    member.user.displayAvatarURL({
+                        extension: 'png',
+                        size: 256
+                    })
+                )
+                .setFooter({
+                    text: 'Shreds • Vanity'
                 })
-            )
-            .setFooter({
-                text: 'Shreds • Vanity'
-            })
-            .setTimestamp();
+                .setTimestamp();
 
         await channel.send({
             embeds: [embed],
@@ -480,14 +623,30 @@ async function sendVanityNotification(member) {
 // VANITY ROLE
 // ============================================================
 
-async function updateVanityRole(member) {
-    if (!member || !member.guild) return;
+async function updateVanityRole(
+    member
+) {
+    if (
+        !member ||
+        !member.guild
+    ) {
+        return;
+    }
 
-    const role = findPictureRole(member.guild);
+    const role =
+        findPictureRole(
+            member.guild
+        );
 
-    if (!role || role.managed) return;
+    if (
+        !role ||
+        role.managed
+    ) {
+        return;
+    }
 
-    const botMember = member.guild.members.me;
+    const botMember =
+        member.guild.members.me;
 
     if (!botMember) return;
 
@@ -498,26 +657,40 @@ async function updateVanityRole(member) {
         console.error(
             `Cannot manage Picture Permissions in ${member.guild.name}: role is too high.`
         );
+
         return;
     }
 
-    const hasVanity = hasShredsVanity(member);
-    const currentlyHasRole = member.roles.cache.has(role.id);
+    const hasVanity =
+        hasShredsVanity(member);
 
-    if (hasVanity && !currentlyHasRole) {
+    const currentlyHasRole =
+        member.roles.cache.has(
+            role.id
+        );
+
+    if (
+        hasVanity &&
+        !currentlyHasRole
+    ) {
         try {
             await member.roles.add(
                 role,
                 'Shreds vanity detected'
             );
 
-            vanityState.set(member.id, true);
+            vanityState.set(
+                member.id,
+                true
+            );
 
             console.log(
                 `Added Picture Permissions to ${member.user.tag}`
             );
 
-            await sendVanityNotification(member);
+            await sendVanityNotification(
+                member
+            );
         } catch (error) {
             console.error(
                 'Vanity role add error:',
@@ -528,14 +701,20 @@ async function updateVanityRole(member) {
         return;
     }
 
-    if (!hasVanity && currentlyHasRole) {
+    if (
+        !hasVanity &&
+        currentlyHasRole
+    ) {
         try {
             await member.roles.remove(
                 role,
                 'Shreds vanity removed'
             );
 
-            vanityState.set(member.id, false);
+            vanityState.set(
+                member.id,
+                false
+            );
 
             console.log(
                 `Removed Picture Permissions from ${member.user.tag}`
@@ -560,7 +739,9 @@ async function updateVanityRole(member) {
 // FULL VANITY RECHECK
 // ============================================================
 
-async function recheckGuildVanity(guild) {
+async function recheckGuildVanity(
+    guild
+) {
     try {
         await guild.members.fetch();
 
@@ -568,10 +749,17 @@ async function recheckGuildVanity(guild) {
             `Rechecking vanity status for ${guild.name}...`
         );
 
-        for (const member of guild.members.cache.values()) {
-            if (member.user.bot) continue;
+        for (
+            const member of
+            guild.members.cache.values()
+        ) {
+            if (member.user.bot) {
+                continue;
+            }
 
-            await updateVanityRole(member);
+            await updateVanityRole(
+                member
+            );
         }
 
         console.log(
@@ -589,24 +777,41 @@ async function recheckGuildVanity(guild) {
 // DISCORD CONNECTION RECOVERY
 // ============================================================
 
-async function reconnectDiscord(reason = 'Unknown reason') {
+async function reconnectDiscord(
+    reason = 'Unknown reason'
+) {
     if (reconnecting) {
         console.log(
             'Discord reconnect already in progress.'
         );
+
         return;
     }
 
     reconnecting = true;
 
-    console.log('========================================');
-    console.log('DISCORD CONNECTION RECOVERY');
-    console.log(`Reason: ${reason}`);
-    console.log('========================================');
+    console.log(
+        '========================================'
+    );
+
+    console.log(
+        'DISCORD CONNECTION RECOVERY'
+    );
+
+    console.log(
+        `Reason: ${reason}`
+    );
+
+    console.log(
+        '========================================'
+    );
 
     try {
         if (reconnectTimer) {
-            clearTimeout(reconnectTimer);
+            clearTimeout(
+                reconnectTimer
+            );
+
             reconnectTimer = null;
         }
 
@@ -619,8 +824,12 @@ async function reconnectDiscord(reason = 'Unknown reason') {
             );
         }
 
-        await new Promise(resolve =>
-            setTimeout(resolve, RECONNECT_DELAY)
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    RECONNECT_DELAY
+                )
         );
 
         console.log(
@@ -642,13 +851,15 @@ async function reconnectDiscord(reason = 'Unknown reason') {
             error
         );
 
-        notReadySince = Date.now();
+        notReadySince =
+            Date.now();
 
-        reconnectTimer = setTimeout(() => {
-            reconnectDiscord(
-                'Previous reconnect attempt failed'
-            );
-        }, RECONNECT_DELAY);
+        reconnectTimer =
+            setTimeout(() => {
+                reconnectDiscord(
+                    'Previous reconnect attempt failed'
+                );
+            }, RECONNECT_DELAY);
     } finally {
         reconnecting = false;
     }
@@ -660,21 +871,28 @@ async function reconnectDiscord(reason = 'Unknown reason') {
 
 setInterval(() => {
     try {
-        const ready = client.isReady();
+        const ready =
+            client.isReady();
 
         if (ready) {
-            if (notReadySince !== null) {
+            if (
+                notReadySince !== null
+            ) {
                 console.log(
                     'Discord connection is READY again.'
                 );
             }
 
             notReadySince = null;
+
             return;
         }
 
-        if (notReadySince === null) {
-            notReadySince = Date.now();
+        if (
+            notReadySince === null
+        ) {
+            notReadySince =
+                Date.now();
 
             console.warn(
                 'Discord client is not ready. Starting recovery timer...'
@@ -684,14 +902,16 @@ setInterval(() => {
         }
 
         const notReadyFor =
-            Date.now() - notReadySince;
+            Date.now() -
+            notReadySince;
 
         console.warn(
             `Discord has not been ready for ${Math.floor(notReadyFor / 1000)} seconds.`
         );
 
         if (
-            notReadyFor >= MAX_NOT_READY_TIME &&
+            notReadyFor >=
+                MAX_NOT_READY_TIME &&
             !reconnecting
         ) {
             reconnectDiscord(
@@ -710,107 +930,166 @@ setInterval(() => {
 // READY
 // ============================================================
 
-client.once('clientReady', async () => {
-    notReadySince = null;
+client.once(
+    'clientReady',
+    async () => {
+        notReadySince = null;
 
-    console.log('========================================');
-    console.log(`Logged in as ${client.user.tag}`);
-    console.log(`Bot ID: ${client.user.id}`);
-    console.log(`Guilds: ${client.guilds.cache.size}`);
-    console.log('Discord connection READY');
-    console.log('========================================');
+        console.log(
+            '========================================'
+        );
 
-    await registerSlashCommands();
+        console.log(
+            `Logged in as ${client.user.tag}`
+        );
 
-    console.log('Running startup vanity check...');
+        console.log(
+            `Bot ID: ${client.user.id}`
+        );
 
-    for (const guild of client.guilds.cache.values()) {
-        try {
-            await recheckGuildVanity(guild);
-        } catch (error) {
-            console.error(
-                `Initial vanity check error in ${guild.name}:`,
-                error
-            );
-        }
-    }
+        console.log(
+            `Guilds: ${client.guilds.cache.size}`
+        );
 
-    console.log(
-        `Vanity system enabled. Rechecking every ${VANITY_RECHECK_INTERVAL / 60000} minutes.`
-    );
+        console.log(
+            'Discord connection READY'
+        );
 
-    setInterval(async () => {
-        if (!client.isReady()) {
-            console.log(
-                'Skipping vanity check because Discord client is not ready.'
-            );
-            return;
-        }
+        console.log(
+            '========================================'
+        );
 
-        for (const guild of client.guilds.cache.values()) {
+        await registerSlashCommands();
+
+        console.log(
+            'Running startup vanity check...'
+        );
+
+        for (
+            const guild of
+            client.guilds.cache.values()
+        ) {
             try {
-                await recheckGuildVanity(guild);
+                await recheckGuildVanity(
+                    guild
+                );
             } catch (error) {
                 console.error(
-                    `Vanity recheck error in ${guild.name}:`,
+                    `Initial vanity check error in ${guild.name}:`,
                     error
                 );
             }
         }
-    }, VANITY_RECHECK_INTERVAL);
-});
+
+        console.log(
+            `Vanity system enabled. Rechecking every ${VANITY_RECHECK_INTERVAL / 60000} minutes.`
+        );
+
+        setInterval(
+            async () => {
+                if (
+                    !client.isReady()
+                ) {
+                    console.log(
+                        'Skipping vanity check because Discord client is not ready.'
+                    );
+
+                    return;
+                }
+
+                for (
+                    const guild of
+                    client.guilds.cache.values()
+                ) {
+                    try {
+                        await recheckGuildVanity(
+                            guild
+                        );
+                    } catch (error) {
+                        console.error(
+                            `Vanity recheck error in ${guild.name}:`,
+                            error
+                        );
+                    }
+                }
+            },
+            VANITY_RECHECK_INTERVAL
+        );
+    }
+);
 
 // ============================================================
 // DISCORD CONNECTION EVENTS
 // ============================================================
 
-client.on('error', error => {
-    console.error(
-        'Discord client error:',
-        error
-    );
-});
-
-client.on('warn', warning => {
-    console.warn(
-        'Discord warning:',
-        warning
-    );
-});
-
-client.on('shardError', error => {
-    console.error(
-        'Discord shard error:',
-        error
-    );
-});
-
-client.on('shardDisconnect', (event, shardId) => {
-    console.error(
-        `Discord shard ${shardId} disconnected.`,
-        event
-    );
-
-    if (notReadySince === null) {
-        notReadySince = Date.now();
+client.on(
+    'error',
+    error => {
+        console.error(
+            'Discord client error:',
+            error
+        );
     }
-});
+);
 
-client.on('shardReconnecting', shardId => {
-    console.log(
-        `Discord shard ${shardId} reconnecting...`
-    );
-});
-
-client.on('shardReady', shardId => {
-    console.log(
-        `Discord shard ${shardId} ready.`
-    );
-
-    if (client.isReady()) {
-        notReadySince = null;
+client.on(
+    'warn',
+    warning => {
+        console.warn(
+            'Discord warning:',
+            warning
+        );
     }
-});
+);
+
+client.on(
+    'shardError',
+    error => {
+        console.error(
+            'Discord shard error:',
+            error
+        );
+    }
+);
+
+client.on(
+    'shardDisconnect',
+    (event, shardId) => {
+        console.error(
+            `Discord shard ${shardId} disconnected.`,
+            event
+        );
+
+        if (
+            notReadySince === null
+        ) {
+            notReadySince =
+                Date.now();
+        }
+    }
+);
+
+client.on(
+    'shardReconnecting',
+    shardId => {
+        console.log(
+            `Discord shard ${shardId} reconnecting...`
+        );
+    }
+);
+
+client.on(
+    'shardReady',
+    shardId => {
+        console.log(
+            `Discord shard ${shardId} ready.`
+        );
+
+        if (client.isReady()) {
+            notReadySince = null;
+        }
+    }
+);
 
 // ============================================================
 // PRESENCE UPDATE
@@ -818,16 +1097,22 @@ client.on('shardReady', shardId => {
 
 client.on(
     'presenceUpdate',
-    async (oldPresence, newPresence) => {
+    async (
+        oldPresence,
+        newPresence
+    ) => {
         const member =
             newPresence?.member ||
             oldPresence?.member;
 
         if (!member) return;
+
         if (member.user.bot) return;
 
         try {
-            await updateVanityRole(member);
+            await updateVanityRole(
+                member
+            );
         } catch (error) {
             console.error(
                 'Presence vanity update error:',
@@ -841,51 +1126,65 @@ client.on(
 // MEMBER JOIN
 // ============================================================
 
-client.on('guildMemberAdd', async member => {
-    try {
-        const channel =
-            await member.guild.channels.fetch(
-                WELCOME_CHANNEL_ID
-            );
-
-        if (channel && channel.isTextBased()) {
-            const welcomeEmbed = new EmbedBuilder()
-                .setDescription(
-                    `${INVIS} ${INVIS}                          **Welcome to /shreds ${WHITE_MOON}**\n\n` +
-                    `${WHITE_SPARKLE}   <#${CHAT_CHANNEL_ID}>  ${WHITE_SPARKLE}   <#${RULES_CHANNEL_ID}>\n` +
-                    `${INVIS}   ${INVIS}   ${INVIS}   ‎ ‎‎‎‎ ‎Member #${member.guild.memberCount}`
-                )
-                .setThumbnail(
-                    member.user.displayAvatarURL({
-                        extension: 'png',
-                        size: 256
-                    })
+client.on(
+    'guildMemberAdd',
+    async member => {
+        try {
+            const channel =
+                await member.guild.channels.fetch(
+                    WELCOME_CHANNEL_ID
                 );
 
-            await channel.send({
-                embeds: [welcomeEmbed],
-                allowedMentions: {
-                    users: [],
-                    roles: [],
-                    repliedUser: false
-                }
-            });
-        }
+            if (
+                channel &&
+                channel.isTextBased()
+            ) {
+                const welcomeEmbed =
+                    new EmbedBuilder()
+                        .setDescription(
+                            `${INVIS} ${INVIS}                          **Welcome to /shreds ${WHITE_MOON}**\n\n` +
+                            `${WHITE_SPARKLE}   <#${CHAT_CHANNEL_ID}>  ${WHITE_SPARKLE}   <#${RULES_CHANNEL_ID}>\n` +
+                            `${INVIS}   ${INVIS}   ${INVIS}   ‎ ‎‎‎‎ ‎Member #${member.guild.memberCount}`
+                        )
+                        .setThumbnail(
+                            member.user.displayAvatarURL({
+                                extension: 'png',
+                                size: 256
+                            })
+                        );
 
-        await updateVanityRole(member);
-    } catch (error) {
-        console.error(
-            'Welcome message error:',
-            error
-        );
+                await channel.send({
+                    embeds: [
+                        welcomeEmbed
+                    ],
+                    allowedMentions: {
+                        users: [],
+                        roles: [],
+                        repliedUser: false
+                    }
+                });
+            }
+
+            await updateVanityRole(
+                member
+            );
+        } catch (error) {
+            console.error(
+                'Welcome message error:',
+                error
+            );
+        }
     }
-});
+);
 
 // ============================================================
 // FIND MESSAGE DELETER
 // ============================================================
 
-async function findMessageDeleter(guild, messageId) {
+async function findMessageDeleter(
+    guild,
+    messageId
+) {
     try {
         if (
             !guild.members.me ||
@@ -902,16 +1201,27 @@ async function findMessageDeleter(guild, messageId) {
                 limit: 10
             });
 
-        const entry = logs.entries.find(entry => {
-            if (!entry.target) return false;
+        const entry =
+            logs.entries.find(
+                entry => {
+                    if (!entry.target) {
+                        return false;
+                    }
 
-            return (
-                entry.target.id === messageId &&
-                Date.now() - entry.createdTimestamp < 15000
+                    return (
+                        entry.target.id ===
+                            messageId &&
+                        Date.now() -
+                            entry.createdTimestamp <
+                            15000
+                    );
+                }
             );
-        });
 
-        return entry?.executor || null;
+        return (
+            entry?.executor ||
+            null
+        );
     } catch {
         return null;
     }
@@ -924,10 +1234,14 @@ async function findMessageDeleter(guild, messageId) {
 client.on(
     'messageDelete',
     async deletedMessage => {
-        if (!deletedMessage.guild) return;
+        if (!deletedMessage.guild) {
+            return;
+        }
 
         try {
-            if (deletedMessage.partial) {
+            if (
+                deletedMessage.partial
+            ) {
                 try {
                     await deletedMessage.fetch();
                 } catch {}
@@ -941,34 +1255,57 @@ client.on(
 
             const entry = {
                 id: deletedMessage.id,
-                guildId: deletedMessage.guild.id,
-                authorId: deletedMessage.author?.id || null,
+
+                guildId:
+                    deletedMessage.guild.id,
+
+                authorId:
+                    deletedMessage.author?.id ||
+                    null,
+
                 authorName:
                     deletedMessage.author?.tag ||
                     deletedMessage.author?.username ||
                     'Unknown user',
+
                 content:
-                    deletedMessage.content || '',
+                    deletedMessage.content ||
+                    '',
+
                 channelId:
-                    deletedMessage.channel?.id || null,
+                    deletedMessage.channel?.id ||
+                    null,
+
                 channelName:
                     deletedMessage.channel?.name ||
                     'Unknown channel',
-                deletedAt: Date.now(),
+
+                deletedAt:
+                    Date.now(),
+
                 deleterId:
-                    deleter?.id || null,
+                    deleter?.id ||
+                    null,
+
                 deleterName:
-                    deleter?.tag || null,
+                    deleter?.tag ||
+                    null,
+
                 attachments:
                     deletedMessage.attachments
                         ? [
-                            ...deletedMessage.attachments.values()
-                        ].map(file => ({
-                            name: file.name,
-                            url: file.url,
-                            contentType:
-                                file.contentType || ''
-                        }))
+                            ...deletedMessage
+                                .attachments
+                                .values()
+                        ].map(
+                            file => ({
+                                name: file.name,
+                                url: file.url,
+                                contentType:
+                                    file.contentType ||
+                                    ''
+                            })
+                        )
                         : []
             };
 
@@ -1010,20 +1347,33 @@ client.on(
 // ROLES PAGE
 // ============================================================
 
-async function showRolesPage(interaction, roles, page) {
+async function showRolesPage(
+    interaction,
+    roles,
+    page
+) {
     const perPage = 10;
 
-    const totalPages = Math.max(
-        1,
-        Math.ceil(roles.length / perPage)
-    );
+    const totalPages =
+        Math.max(
+            1,
+            Math.ceil(
+                roles.length /
+                perPage
+            )
+        );
 
-    page = Math.max(
-        0,
-        Math.min(page, totalPages - 1)
-    );
+    page =
+        Math.max(
+            0,
+            Math.min(
+                page,
+                totalPages - 1
+            )
+        );
 
-    const start = page * perPage;
+    const start =
+        page * perPage;
 
     const currentRoles =
         roles.slice(
@@ -1039,35 +1389,57 @@ async function showRolesPage(interaction, roles, page) {
             )
             .join('\n');
 
-    const embed = new EmbedBuilder()
-        .setTitle('Server Roles')
-        .setDescription(
-            roleList ||
-            'No roles found.'
-        )
-        .setFooter({
-            text:
-                `Page ${page + 1} / ${totalPages} • ` +
-                `${roles.length} roles`
-        });
+    const embed =
+        new EmbedBuilder()
+            .setTitle(
+                'Server Roles'
+            )
+            .setDescription(
+                roleList ||
+                'No roles found.'
+            )
+            .setFooter({
+                text:
+                    `Page ${page + 1} / ${totalPages} • ` +
+                    `${roles.length} roles`
+            });
 
     const row =
         new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId('roles_previous')
-                    .setLabel('Previous')
-                    .setEmoji('◀️')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(page === 0),
+                    .setCustomId(
+                        'roles_previous'
+                    )
+                    .setLabel(
+                        'Previous'
+                    )
+                    .setEmoji(
+                        '◀️'
+                    )
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
+                    .setDisabled(
+                        page === 0
+                    ),
 
                 new ButtonBuilder()
-                    .setCustomId('roles_next')
-                    .setLabel('Next')
-                    .setEmoji('▶️')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setCustomId(
+                        'roles_next'
+                    )
+                    .setLabel(
+                        'Next'
+                    )
+                    .setEmoji(
+                        '▶️'
+                    )
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
                     .setDisabled(
-                        page === totalPages - 1
+                        page ===
+                        totalPages - 1
                     )
             );
 
@@ -1092,17 +1464,26 @@ async function showInRolePage(
 ) {
     const perPage = 10;
 
-    const totalPages = Math.max(
-        1,
-        Math.ceil(members.length / perPage)
-    );
+    const totalPages =
+        Math.max(
+            1,
+            Math.ceil(
+                members.length /
+                perPage
+            )
+        );
 
-    page = Math.max(
-        0,
-        Math.min(page, totalPages - 1)
-    );
+    page =
+        Math.max(
+            0,
+            Math.min(
+                page,
+                totalPages - 1
+            )
+        );
 
-    const start = page * perPage;
+    const start =
+        page * perPage;
 
     const currentMembers =
         members.slice(
@@ -1119,37 +1500,57 @@ async function showInRolePage(
             )
             .join('\n');
 
-    const embed = new EmbedBuilder()
-        .setTitle(
-            `Members in ${role.name}`
-        )
-        .setDescription(
-            memberList ||
-            'No members found.'
-        )
-        .setFooter({
-            text:
-                `Page ${page + 1} / ${totalPages} • ` +
-                `${members.length} members`
-        });
+    const embed =
+        new EmbedBuilder()
+            .setTitle(
+                `Members in ${role.name}`
+            )
+            .setDescription(
+                memberList ||
+                'No members found.'
+            )
+            .setFooter({
+                text:
+                    `Page ${page + 1} / ${totalPages} • ` +
+                    `${members.length} members`
+            });
 
     const row =
         new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId('inrole_previous')
-                    .setLabel('Previous')
-                    .setEmoji('◀️')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(page === 0),
+                    .setCustomId(
+                        'inrole_previous'
+                    )
+                    .setLabel(
+                        'Previous'
+                    )
+                    .setEmoji(
+                        '◀️'
+                    )
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
+                    .setDisabled(
+                        page === 0
+                    ),
 
                 new ButtonBuilder()
-                    .setCustomId('inrole_next')
-                    .setLabel('Next')
-                    .setEmoji('▶️')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setCustomId(
+                        'inrole_next'
+                    )
+                    .setLabel(
+                        'Next'
+                    )
+                    .setEmoji(
+                        '▶️'
+                    )
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
                     .setDisabled(
-                        page === totalPages - 1
+                        page ===
+                        totalPages - 1
                     )
             );
 
@@ -1171,32 +1572,43 @@ client.on(
         // /UPTIME
         // ====================================================
 
-        if (interaction.isChatInputCommand()) {
-            if (interaction.commandName === 'uptime') {
-
+        if (
+            interaction.isChatInputCommand()
+        ) {
+            if (
+                interaction.commandName ===
+                'uptime'
+            ) {
                 const uptimeSeconds =
                     Math.max(
                         0,
-                        Math.floor(Date.now() / 1000) -
+                        Math.floor(
+                            Date.now() /
+                            1000
+                        ) -
                         BOT_START_TIME
                     );
 
                 const uptimeText =
                     formatDuration(
-                        uptimeSeconds * 1000
+                        uptimeSeconds *
+                        1000
                     );
 
                 return interaction.reply({
                     embeds: [
                         new EmbedBuilder()
-                            .setTitle('⏱️ Shreds Uptime')
+                            .setTitle(
+                                '⏱️ Shreds Uptime'
+                            )
                             .setDescription(
                                 `**Uptime**\n${uptimeText}\n\n` +
                                 `**Online Since**\n<t:${BOT_START_TIME}:F>\n` +
                                 `<t:${BOT_START_TIME}:R>`
                             )
                             .setFooter({
-                                text: 'Shreds • Uptime'
+                                text:
+                                    'Shreds • Uptime'
                             })
                             .setTimestamp()
                     ]
@@ -1210,7 +1622,9 @@ client.on(
         // BUTTONS
         // ====================================================
 
-        if (!interaction.isButton()) return;
+        if (!interaction.isButton()) {
+            return;
+        }
 
         try {
             const embed =
@@ -1229,22 +1643,31 @@ client.on(
             }
 
             if (
-                interaction.customId === 'roles_previous' ||
-                interaction.customId === 'roles_next'
+                interaction.customId ===
+                    'roles_previous' ||
+                interaction.customId ===
+                    'roles_next'
             ) {
-                const roles = [
-                    ...interaction.guild.roles.cache.values()
-                ]
-                    .filter(
-                        role =>
-                            role.id !==
-                            interaction.guild.id
-                    )
-                    .sort(
-                        (a, b) =>
-                            b.position -
-                            a.position
-                    );
+                const roles =
+                    [
+                        ...interaction
+                            .guild
+                            .roles
+                            .cache
+                            .values()
+                    ]
+                        .filter(
+                            role =>
+                                role.id !==
+                                interaction
+                                    .guild
+                                    .id
+                        )
+                        .sort(
+                            (a, b) =>
+                                b.position -
+                                a.position
+                        );
 
                 const match =
                     (
@@ -1254,12 +1677,16 @@ client.on(
                         /Page (\d+) \/ (\d+)/
                     );
 
-                let page = match
-                    ? Number(match[1]) - 1
-                    : 0;
+                let page =
+                    match
+                        ? Number(
+                            match[1]
+                        ) - 1
+                        : 0;
 
                 page +=
-                    interaction.customId ===
+                    interaction
+                        .customId ===
                     'roles_next'
                         ? 1
                         : -1;
@@ -1274,8 +1701,10 @@ client.on(
             }
 
             if (
-                interaction.customId === 'inrole_previous' ||
-                interaction.customId === 'inrole_next'
+                interaction.customId ===
+                    'inrole_previous' ||
+                interaction.customId ===
+                    'inrole_next'
             ) {
                 const roleName =
                     (
@@ -1287,11 +1716,15 @@ client.on(
                     );
 
                 const role =
-                    interaction.guild.roles.cache.find(
-                        r =>
-                            r.name ===
-                            roleName
-                    );
+                    interaction
+                        .guild
+                        .roles
+                        .cache
+                        .find(
+                            r =>
+                                r.name ===
+                                roleName
+                        );
 
                 if (!role) {
                     return interaction.reply({
@@ -1305,16 +1738,21 @@ client.on(
                     });
                 }
 
-                await interaction.guild.members.fetch();
+                await interaction
+                    .guild
+                    .members
+                    .fetch();
 
                 const members =
                     [
-                        ...role.members.values()
+                        ...role.members
+                            .values()
                     ].sort(
                         (a, b) =>
-                            a.user.username.localeCompare(
-                                b.user.username
-                            )
+                            a.user.username
+                                .localeCompare(
+                                    b.user.username
+                                )
                     );
 
                 const match =
@@ -1325,12 +1763,16 @@ client.on(
                         /Page (\d+) \/ (\d+)/
                     );
 
-                let page = match
-                    ? Number(match[1]) - 1
-                    : 0;
+                let page =
+                    match
+                        ? Number(
+                            match[1]
+                        ) - 1
+                        : 0;
 
                 page +=
-                    interaction.customId ===
+                    interaction
+                        .customId ===
                     'inrole_next'
                         ? 1
                         : -1;
@@ -1352,15 +1794,17 @@ client.on(
                 !interaction.replied &&
                 !interaction.deferred
             ) {
-                await interaction.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Interaction Failed',
-                            'Something went wrong while updating this menu.'
-                        )
-                    ],
-                    ephemeral: true
-                }).catch(() => {});
+                await interaction
+                    .reply({
+                        embeds: [
+                            errorEmbed(
+                                '❌ Interaction Failed',
+                                'Something went wrong while updating this menu.'
+                            )
+                        ],
+                        ephemeral: true
+                    })
+                    .catch(() => {});
             }
         }
     }
@@ -1374,8 +1818,16 @@ client.on(
     'messageCreate',
     async message => {
         if (message.author.bot) return;
+
         if (!message.guild) return;
-        if (!message.content.startsWith(PREFIX)) return;
+
+        if (
+            !message.content.startsWith(
+                PREFIX
+            )
+        ) {
+            return;
+        }
 
         const args =
             message.content
@@ -1395,13 +1847,16 @@ client.on(
         if (command === 'ping') {
             const embed =
                 new EmbedBuilder()
-                    .setTitle('🏓 Pong!')
+                    .setTitle(
+                        '🏓 Pong!'
+                    )
                     .setDescription(
                         `**Bot Latency**\n${client.ws.ping}ms\n\n` +
                         `**Status**\nConnected and operational.`
                     )
                     .setFooter({
-                        text: 'Shreds • Connection'
+                        text:
+                            'Shreds • Connection'
                     })
                     .setTimestamp();
 
@@ -1417,7 +1872,9 @@ client.on(
         if (command === 'cmds') {
             const embed =
                 new EmbedBuilder()
-                    .setTitle('Shreds Commands')
+                    .setTitle(
+                        'Shreds Commands'
+                    )
                     .setDescription(
                         [
                             '**GENERAL**',
@@ -1437,6 +1894,7 @@ client.on(
                             '`,kick <user> <reason>` — Kick a member',
                             '`,ban <user> <reason>` — Ban a member',
                             '`,timeout <user> <duration> <reason>` — Timeout a member',
+                            '`,purge <amount>` — Delete recent messages',
                             '',
                             '**SNIPING**',
                             '`,s` — View the latest deleted message',
@@ -1448,7 +1906,8 @@ client.on(
                         ].join('\n')
                     )
                     .setFooter({
-                        text: 'Shreds • Command List'
+                        text:
+                            'Shreds • Command List'
                     })
                     .setTimestamp();
 
@@ -1584,7 +2043,9 @@ client.on(
                     ]
                 });
             } catch (error) {
-                console.error(error);
+                console.error(
+                    error
+                );
 
                 return message.reply({
                     embeds: [
@@ -1618,7 +2079,10 @@ client.on(
                 });
             }
 
-            if (!args[0] || !args[1]) {
+            if (
+                !args[0] ||
+                !args[1]
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1674,7 +2138,12 @@ client.on(
                 });
             }
 
-            if (!canManageRole(message, role)) {
+            if (
+                !canManageRole(
+                    message,
+                    role
+                )
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1757,8 +2226,11 @@ client.on(
         // ====================================================
 
         if (command === 'strip') {
-
-            if (!STRIP_ALLOWED_USERS.has(message.author.id)) {
+            if (
+                !isStripRestoreWhitelisted(
+                    message.member
+                )
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1813,7 +2285,10 @@ client.on(
                 });
             }
 
-            if (member.id === message.author.id) {
+            if (
+                member.id ===
+                message.author.id
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1839,16 +2314,23 @@ client.on(
             }
 
             const rolesToStrip =
-                getStrippableRoles(member);
+                getStrippableRoles(
+                    member
+                );
 
             const manageableRoles =
                 rolesToStrip.filter(
                     role =>
                         role.position <
-                        botMember.roles.highest.position
+                        botMember
+                            .roles
+                            .highest
+                            .position
                 );
 
-            if (!manageableRoles.length) {
+            if (
+                !manageableRoles.length
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -1862,7 +2344,8 @@ client.on(
             try {
                 const roleIds =
                     manageableRoles.map(
-                        role => role.id
+                        role =>
+                            role.id
                     );
 
                 strippedRoles.set(
@@ -1887,7 +2370,10 @@ client.on(
                                 `${manageableRoles.length}`,
                                 '',
                                 manageableRoles
-                                    .map(role => `• ${role.name}`)
+                                    .map(
+                                        role =>
+                                            `• ${role.name}`
+                                    )
                                     .join('\n'),
                                 '',
                                 'Their previous roles have been saved.',
@@ -1918,6 +2404,21 @@ client.on(
         // ====================================================
 
         if (command === 'res') {
+            if (
+                !isStripRestoreWhitelisted(
+                    message.member
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You are not authorised to use `,res`.'
+                        )
+                    ]
+                });
+            }
+
             if (
                 !hasPermission(
                     message.member,
@@ -1963,7 +2464,9 @@ client.on(
             }
 
             const savedRoles =
-                strippedRoles.get(member.id);
+                strippedRoles.get(
+                    member.id
+                );
 
             if (
                 !savedRoles ||
@@ -1995,18 +2498,30 @@ client.on(
 
             const rolesToRestore =
                 savedRoles
-                    .map(id =>
-                        message.guild.roles.cache.get(id)
+                    .map(
+                        id =>
+                            message.guild
+                                .roles
+                                .cache
+                                .get(id)
                     )
                     .filter(Boolean)
-                    .filter(role =>
-                        !role.managed &&
-                        role.position <
-                        botMember.roles.highest.position
+                    .filter(
+                        role =>
+                            !role.managed &&
+                            role.position <
+                            botMember
+                                .roles
+                                .highest
+                                .position
                     );
 
-            if (!rolesToRestore.length) {
-                strippedRoles.delete(member.id);
+            if (
+                !rolesToRestore.length
+            ) {
+                strippedRoles.delete(
+                    member.id
+                );
 
                 return message.reply({
                     embeds: [
@@ -2024,7 +2539,9 @@ client.on(
                     `Previously stripped roles restored by ${message.author.tag}`
                 );
 
-                strippedRoles.delete(member.id);
+                strippedRoles.delete(
+                    member.id
+                );
 
                 return message.reply({
                     embeds: [
@@ -2038,7 +2555,10 @@ client.on(
                                 `${rolesToRestore.length}`,
                                 '',
                                 rolesToRestore
-                                    .map(role => `• ${role.name}`)
+                                    .map(
+                                        role =>
+                                            `• ${role.name}`
+                                    )
                                     .join('\n')
                             ].join('\n')
                         )
@@ -2068,7 +2588,10 @@ client.on(
         if (command === 'roles') {
             const roles =
                 [
-                    ...message.guild.roles.cache.values()
+                    ...message.guild
+                        .roles
+                        .cache
+                        .values()
                 ]
                     .filter(
                         role =>
@@ -2119,7 +2642,9 @@ client.on(
 
             const embed =
                 new EmbedBuilder()
-                    .setTitle('Server Roles')
+                    .setTitle(
+                        'Server Roles'
+                    )
                     .setDescription(
                         roleList
                     )
@@ -2163,7 +2688,8 @@ client.on(
                                 ButtonStyle.Secondary
                             )
                             .setDisabled(
-                                totalPages === 1
+                                totalPages ===
+                                1
                             )
                     );
 
@@ -2185,7 +2711,9 @@ client.on(
 
             if (args.length === 0) {
                 role =
-                    message.member.roles.highest;
+                    message.member
+                        .roles
+                        .highest;
 
                 if (
                     !role ||
@@ -2220,16 +2748,20 @@ client.on(
                 }
             }
 
-            await message.guild.members.fetch();
+            await message.guild
+                .members
+                .fetch();
 
             const members =
                 [
-                    ...role.members.values()
+                    ...role.members
+                        .values()
                 ].sort(
                     (a, b) =>
-                        a.user.username.localeCompare(
-                            b.user.username
-                        )
+                        a.user.username
+                            .localeCompare(
+                                b.user.username
+                            )
                 );
 
             if (!members.length) {
@@ -2317,7 +2849,8 @@ client.on(
                                 ButtonStyle.Secondary
                             )
                             .setDisabled(
-                                totalPages === 1
+                                totalPages ===
+                                1
                             )
                     );
 
@@ -2331,18 +2864,29 @@ client.on(
         // BOOSTER ROLE
         // ====================================================
 
-        if (command === 'boosterrole') {
+        if (
+            command ===
+            'boosterrole'
+        ) {
             const isAdmin =
-                message.member.permissions.has(
-                    PermissionsBitField.Flags.Administrator
-                );
+                message.member
+                    .permissions
+                    .has(
+                        PermissionsBitField
+                            .Flags
+                            .Administrator
+                    );
 
             const isBooster =
                 Boolean(
-                    message.member.premiumSince
+                    message.member
+                        .premiumSince
                 );
 
-            if (!isAdmin && !isBooster) {
+            if (
+                !isAdmin &&
+                !isBooster
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2369,7 +2913,9 @@ client.on(
 
             if (
                 !botMember.permissions.has(
-                    PermissionsBitField.Flags.ManageRoles
+                    PermissionsBitField
+                        .Flags
+                        .ManageRoles
                 )
             ) {
                 return message.reply({
@@ -2393,22 +2939,40 @@ client.on(
                 });
             }
 
-            let colour1 = args[0].trim();
-            let colour2 = args[1].trim();
+            let colour1 =
+                args[0].trim();
 
-            if (!colour1.startsWith('#')) {
-                colour1 = `#${colour1}`;
-            }
-
-            if (!colour2.startsWith('#')) {
-                colour2 = `#${colour2}`;
-            }
-
-            const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+            let colour2 =
+                args[1].trim();
 
             if (
-                !hexRegex.test(colour1) ||
-                !hexRegex.test(colour2)
+                !colour1.startsWith(
+                    '#'
+                )
+            ) {
+                colour1 =
+                    `#${colour1}`;
+            }
+
+            if (
+                !colour2.startsWith(
+                    '#'
+                )
+            ) {
+                colour2 =
+                    `#${colour2}`;
+            }
+
+            const hexRegex =
+                /^#[0-9A-Fa-f]{6}$/;
+
+            if (
+                !hexRegex.test(
+                    colour1
+                ) ||
+                !hexRegex.test(
+                    colour2
+                )
             ) {
                 return message.reply({
                     embeds: [
@@ -2430,16 +2994,22 @@ client.on(
 
             try {
                 role =
-                    await message.guild.roles.create({
-                        name: roleName,
-                        colors: {
-                            primaryColor: colour1,
-                            secondaryColor: colour2
-                        },
-                        reason:
-                            `Booster role created by ${message.author.tag}`
-                    });
-            } catch (gradientError) {
+                    await message.guild
+                        .roles
+                        .create({
+                            name: roleName,
+                            colors: {
+                                primaryColor:
+                                    colour1,
+                                secondaryColor:
+                                    colour2
+                            },
+                            reason:
+                                `Booster role created by ${message.author.tag}`
+                        });
+            } catch (
+                gradientError
+            ) {
                 console.error(
                     'Gradient role creation failed:',
                     gradientError
@@ -2447,13 +3017,17 @@ client.on(
 
                 try {
                     role =
-                        await message.guild.roles.create({
-                            name: roleName,
-                            color: colour1,
-                            reason:
-                                `Booster role created by ${message.author.tag}`
-                        });
-                } catch (solidError) {
+                        await message.guild
+                            .roles
+                            .create({
+                                name: roleName,
+                                color: colour1,
+                                reason:
+                                    `Booster role created by ${message.author.tag}`
+                            });
+                } catch (
+                    solidError
+                ) {
                     console.error(
                         'Solid role creation also failed:',
                         solidError
@@ -2470,7 +3044,12 @@ client.on(
                 }
             }
 
-            if (!canManageRole(message, role)) {
+            if (
+                !canManageRole(
+                    message,
+                    role
+                )
+            ) {
                 try {
                     await role.delete(
                         'Created too high in role hierarchy'
@@ -2488,13 +3067,17 @@ client.on(
             }
 
             try {
-                await message.member.roles.add(
-                    role,
-                    'Booster role created'
-                );
+                await message.member
+                    .roles
+                    .add(
+                        role,
+                        'Booster role created'
+                    );
 
                 const isGradient =
-                    role.colors?.secondaryColor != null;
+                    role.colors
+                        ?.secondaryColor !=
+                    null;
 
                 return message.reply({
                     embeds: [
@@ -2549,7 +3132,9 @@ client.on(
             if (
                 !hasPermission(
                     message.member,
-                    PermissionsBitField.Flags.KickMembers
+                    PermissionsBitField
+                        .Flags
+                        .KickMembers
                 )
             ) {
                 return message.reply({
@@ -2602,11 +3187,15 @@ client.on(
             }
 
             const reason =
-                args.slice(1).join(' ') ||
+                args
+                    .slice(1)
+                    .join(' ') ||
                 'No reason provided';
 
             try {
-                await member.kick(reason);
+                await member.kick(
+                    reason
+                );
 
                 return message.reply({
                     embeds: [
@@ -2647,7 +3236,9 @@ client.on(
             if (
                 !hasPermission(
                     message.member,
-                    PermissionsBitField.Flags.BanMembers
+                    PermissionsBitField
+                        .Flags
+                        .BanMembers
                 )
             ) {
                 return message.reply({
@@ -2700,11 +3291,15 @@ client.on(
             }
 
             const reason =
-                args.slice(1).join(' ') ||
+                args
+                    .slice(1)
+                    .join(' ') ||
                 'No reason provided';
 
             try {
-                await member.ban({ reason });
+                await member.ban({
+                    reason
+                });
 
                 return message.reply({
                     embeds: [
@@ -2741,11 +3336,16 @@ client.on(
         // TIMEOUT
         // ====================================================
 
-        if (command === 'timeout') {
+        if (
+            command ===
+            'timeout'
+        ) {
             if (
                 !hasPermission(
                     message.member,
-                    PermissionsBitField.Flags.ModerateMembers
+                    PermissionsBitField
+                        .Flags
+                        .ModerateMembers
                 )
             ) {
                 return message.reply({
@@ -2758,7 +3358,10 @@ client.on(
                 });
             }
 
-            if (!args[0] || !args[1]) {
+            if (
+                !args[0] ||
+                !args[1]
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2787,7 +3390,9 @@ client.on(
             }
 
             const duration =
-                parseDuration(args[1]);
+                parseDuration(
+                    args[1]
+                );
 
             if (!duration) {
                 return message.reply({
@@ -2807,7 +3412,10 @@ client.on(
                 60 *
                 1000;
 
-            if (duration > MAX_TIMEOUT) {
+            if (
+                duration >
+                MAX_TIMEOUT
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2818,7 +3426,9 @@ client.on(
                 });
             }
 
-            if (!member.moderatable) {
+            if (
+                !member.moderatable
+            ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
@@ -2830,7 +3440,9 @@ client.on(
             }
 
             const reason =
-                args.slice(2).join(' ') ||
+                args
+                    .slice(2)
+                    .join(' ') ||
                 'No reason provided';
 
             try {
@@ -2848,7 +3460,9 @@ client.on(
                                 `${member.user.tag}`,
                                 '',
                                 `**Duration**`,
-                                formatDuration(duration),
+                                formatDuration(
+                                    duration
+                                ),
                                 '',
                                 `**Reason**`,
                                 reason
@@ -2874,6 +3488,189 @@ client.on(
         }
 
         // ====================================================
+        // PURGE
+        // ====================================================
+
+        if (command === 'purge') {
+            if (
+                !hasPermission(
+                    message.member,
+                    PermissionsBitField
+                        .Flags
+                        .ManageMessages
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Permission Denied',
+                            'You need **Manage Messages** permission to use `,purge`.'
+                        )
+                    ]
+                });
+            }
+
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Invalid Usage',
+                            'Use `,purge <amount>`.\n\nExample: `,purge 25`'
+                        )
+                    ]
+                });
+            }
+
+            const amount =
+                Number(args[0]);
+
+            if (
+                !Number.isInteger(amount) ||
+                amount < 1
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Invalid Amount',
+                            'Please enter a whole number between **1 and 100**.'
+                        )
+                    ]
+                });
+            }
+
+            if (
+                amount >
+                MAX_PURGE_AMOUNT
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Amount Too Large',
+                            'You can purge a maximum of **100 messages** at once.'
+                        )
+                    ]
+                });
+            }
+
+            const botMember =
+                message.guild.members.me;
+
+            if (!botMember) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Bot Error',
+                            'I could not find my bot member in this server.'
+                        )
+                    ]
+                });
+            }
+
+            if (
+                !botMember.permissions.has(
+                    PermissionsBitField
+                        .Flags
+                        .ManageMessages
+                )
+            ) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Missing Permission',
+                            'I need **Manage Messages** permission to purge messages.'
+                        )
+                    ]
+                });
+            }
+
+            try {
+                // Fetch enough messages to include
+                // the command message itself.
+                const fetched =
+                    await message.channel.messages.fetch({
+                        limit:
+                            Math.min(
+                                amount + 1,
+                                100
+                            )
+                    });
+
+                const messagesToDelete =
+                    [
+                        ...fetched.values()
+                    ].slice(
+                        0,
+                        amount + 1
+                    );
+
+                if (
+                    !messagesToDelete.length
+                ) {
+                    return message.reply({
+                        embeds: [
+                            errorEmbed(
+                                '❌ Nothing to Purge',
+                                'There were no messages available to delete.'
+                            )
+                        ]
+                    });
+                }
+
+                const deleted =
+                    await message.channel.bulkDelete(
+                        messagesToDelete,
+                        true
+                    );
+
+                const deletedCount =
+                    deleted.size;
+
+                const confirmation =
+                    await message.channel.send({
+                        embeds: [
+                            successEmbed(
+                                '🧹 Messages Purged',
+                                [
+                                    `**Messages Deleted**`,
+                                    `${deletedCount}`,
+                                    '',
+                                    `**Moderator**`,
+                                    `${message.member}`,
+                                    '',
+                                    'The selected messages were successfully removed.'
+                                ].join('\n')
+                            )
+                        ]
+                    });
+
+                setTimeout(
+                    () => {
+                        confirmation
+                            .delete()
+                            .catch(() => {});
+                    },
+                    5000
+                );
+
+                return;
+            } catch (error) {
+                console.error(
+                    'Purge command error:',
+                    error
+                );
+
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Purge Failed',
+                            'I could not delete those messages. Check that I have **Manage Messages** permission and the required channel permissions.'
+                        )
+                    ]
+                });
+            }
+        }
+
+        // ====================================================
         // SNIPE
         // ====================================================
 
@@ -2882,10 +3679,14 @@ client.on(
 
             if (args[0]) {
                 const parsedPage =
-                    Number(args[0]);
+                    Number(
+                        args[0]
+                    );
 
                 if (
-                    !Number.isInteger(parsedPage) ||
+                    !Number.isInteger(
+                        parsedPage
+                    ) ||
                     parsedPage < 1
                 ) {
                     return message.reply({
@@ -2898,7 +3699,8 @@ client.on(
                     });
                 }
 
-                page = parsedPage;
+                page =
+                    parsedPage;
             }
 
             const snipes =
@@ -2930,8 +3732,7 @@ client.on(
             description +=
                 `\n**Channel:** <#${entry.channelId}>`;
 
-            description +=
-                `\n**Deleted by:** ${entry.deleterName || 'Unknown / unavailable'}`;
+            // Deleted-by information intentionally removed.
 
             description +=
                 `\n**Deleted:** <t:${Math.floor(entry.deletedAt / 1000)}:F>`;
@@ -2948,16 +3749,18 @@ client.on(
                         description
                     )
                     .setFooter({
-                        text: 'Shreds • Snipe'
+                        text:
+                            'Shreds • Snipe'
                     })
                     .setTimestamp();
 
             const firstImage =
                 entry.attachments.find(
                     file =>
-                        file.contentType?.startsWith(
-                            'image/'
-                        )
+                        file.contentType
+                            ?.startsWith(
+                                'image/'
+                            )
                 );
 
             if (firstImage) {
@@ -2975,13 +3778,19 @@ client.on(
                     entry.attachments
                         .filter(
                             file =>
-                                !file.contentType?.startsWith(
-                                    'image/'
-                                )
+                                !file.contentType
+                                    ?.startsWith(
+                                        'image/'
+                                    )
                         )
-                        .slice(0, 10);
+                        .slice(
+                            0,
+                            10
+                        );
 
-                if (otherAttachments.length) {
+                if (
+                    otherAttachments.length
+                ) {
                     await message.channel.send({
                         content:
                             '**Attachments:**\n' +
@@ -3011,7 +3820,9 @@ client.on(
             if (
                 !hasPermission(
                     message.member,
-                    PermissionsBitField.Flags.ManageMessages
+                    PermissionsBitField
+                        .Flags
+                        .ManageMessages
                 )
             ) {
                 return message.reply({
