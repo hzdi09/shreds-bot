@@ -26,8 +26,11 @@ const PREFIX = ',';
 
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
-// Existing 3-user whitelist.
-// These users are authorised to use both ,strip and ,res.
+// ============================================================
+// STRIP / RESTORE WHITELIST
+// These are the ONLY users authorised to use ,strip and ,res.
+// ============================================================
+
 const STRIP_ALLOWED_USERS = new Set([
     '1375128465430417610',
     '324402906813956096',
@@ -210,6 +213,193 @@ function infoEmbed(title, description) {
         .setDescription(description)
         .setFooter({
             text: 'Shreds'
+        })
+        .setTimestamp();
+}
+
+// ============================================================
+// COMMAND HELP EMBEDS
+// ============================================================
+
+function banHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('🔨 Ban a User')
+        .setDescription(
+            [
+                'Ban a user from the server.',
+                '',
+                '**Syntax**',
+                '`,ban <user> [reason]`',
+                '',
+                '**Example**',
+                '`,ban @timmy spam`',
+                '',
+                'The reason is optional. If no reason is provided, Shreds will use **No reason provided**.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Ban Help'
+        })
+        .setTimestamp();
+}
+
+function kickHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('👢 Kick a User')
+        .setDescription(
+            [
+                'Kick a user from the server.',
+                '',
+                '**Syntax**',
+                '`,kick <user> [reason]`',
+                '',
+                '**Example**',
+                '`,kick @timmy spam`',
+                '',
+                'The reason is optional. If no reason is provided, Shreds will use **No reason provided**.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Kick Help'
+        })
+        .setTimestamp();
+}
+
+function timeoutHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('⏱️ Timeout a User')
+        .setDescription(
+            [
+                'Temporarily timeout a user so they cannot communicate in the server.',
+                '',
+                '**Syntax**',
+                '`,timeout <user> <duration> [reason]`',
+                '',
+                '**Examples**',
+                '`,timeout @timmy 10m spam`',
+                '`,timeout @timmy 2h`',
+                '',
+                '**Duration Examples**',
+                '`20s` • `5m` • `2h` • `7d`',
+                '',
+                'The reason is optional. Timeouts can be up to **28 days**.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Timeout Help'
+        })
+        .setTimestamp();
+}
+
+function verifyHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('✅ Verify a User')
+        .setDescription(
+            [
+                'Verify a member by giving them the Verified role and removing their Unverified role.',
+                '',
+                '**Syntax**',
+                '`,verify <user>`',
+                '',
+                '**Example**',
+                '`,verify @timmy`',
+                '',
+                'Requires **Manage Roles** permission.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Verify Help'
+        })
+        .setTimestamp();
+}
+
+function roleHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('🎭 Toggle a Role')
+        .setDescription(
+            [
+                'Add a role to a member, or remove it if they already have it.',
+                '',
+                '**Syntax**',
+                '`,role <user> <role>`',
+                '',
+                '**Example**',
+                '`,role @timmy Moderator`',
+                '',
+                'Requires **Manage Roles** permission. The role must also be below both your highest role and Shreds\' highest role.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Role Help'
+        })
+        .setTimestamp();
+}
+
+function stripHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('🛡️ Strip Staff Access')
+        .setDescription(
+            [
+                'Remove manageable staff, moderation, or administrator roles from a member and save those roles so they can later be restored.',
+                '',
+                '**Syntax**',
+                '`,strip <user>`',
+                '',
+                '**Example**',
+                '`,strip @timmy`',
+                '',
+                'This command is restricted to the authorised Shreds whitelist. The bot must have **Manage Roles**, and the target roles must be below the bot\'s highest role.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Strip Help'
+        })
+        .setTimestamp();
+}
+
+function restoreHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('♻️ Restore Staff Access')
+        .setDescription(
+            [
+                'Restore the staff, moderation, or administrator roles previously saved by `,strip`.',
+                '',
+                '**Syntax**',
+                '`,res <user>`',
+                '',
+                '**Example**',
+                '`,res @timmy`',
+                '',
+                'This command is restricted to the authorised Shreds whitelist. Only roles still existing and manageable by the bot can be restored.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Restore Help'
+        })
+        .setTimestamp();
+}
+
+function boosterRoleHelpEmbed() {
+    return new EmbedBuilder()
+        .setTitle('💎 Create a Booster Role')
+        .setDescription(
+            [
+                'Create a custom role using one or two HEX colours and automatically assign it to yourself.',
+                '',
+                '**Syntax**',
+                '`,boosterrole <colour1> <colour2> <name>`',
+                '',
+                '**Example**',
+                '`,boosterrole 787878 020105 Timmy`',
+                '',
+                '**Access**',
+                'You must be a Server Booster or have Administrator permission.',
+                '',
+                'Colours must be 6-digit HEX values, with or without `#`.'
+            ].join('\n')
+        )
+        .setFooter({
+            text: 'Shreds • Booster Role Help'
         })
         .setTimestamp();
 }
@@ -436,6 +626,8 @@ function hasPermission(
     member,
     permission
 ) {
+    if (!member) return false;
+
     return member.permissions.has(
         permission
     );
@@ -450,8 +642,12 @@ function isStripRestoreWhitelisted(
 ) {
     if (!member) return false;
 
+    // IMPORTANT:
+    // This checks the actual Discord member ID.
+    // It does NOT depend on their roles or Manage Roles
+    // permission.
     return STRIP_ALLOWED_USERS.has(
-        member.id
+        String(member.id)
     );
 }
 
@@ -511,9 +707,6 @@ function roleIsStaffOrModeration(role) {
         return false;
     }
 
-    // A role is considered a staff/mod/admin role
-    // when it directly grants at least one
-    // moderation/staff permission.
     return STRIP_PERMISSIONS.some(
         permission =>
             role.permissions.has(permission)
@@ -1783,6 +1976,8 @@ client.on(
                     role,
                     page
                 );
+
+                return;
             }
         } catch (error) {
             console.error(
@@ -1891,9 +2086,9 @@ client.on(
                             '`,boosterrole <colour1> <colour2> <name>` — Create a booster role',
                             '',
                             '**MODERATION**',
-                            '`,kick <user> <reason>` — Kick a member',
-                            '`,ban <user> <reason>` — Ban a member',
-                            '`,timeout <user> <duration> <reason>` — Timeout a member',
+                            '`,kick <user> [reason]` — Kick a member',
+                            '`,ban <user> [reason]` — Ban a member',
+                            '`,timeout <user> <duration> [reason]` — Timeout a member',
                             '`,purge <amount>` — Delete recent messages',
                             '',
                             '**SNIPING**',
@@ -1921,6 +2116,14 @@ client.on(
         // ====================================================
 
         if (command === 'verify') {
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        verifyHelpEmbed()
+                    ]
+                });
+            }
+
             if (
                 !hasPermission(
                     message.member,
@@ -1932,17 +2135,6 @@ client.on(
                         errorEmbed(
                             '❌ Permission Denied',
                             'You need **Manage Roles** permission to verify members.'
-                        )
-                    ]
-                });
-            }
-
-            if (!args[0]) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,verify <user>` to verify a member.'
                         )
                     ]
                 });
@@ -2064,6 +2256,17 @@ client.on(
 
         if (command === 'role') {
             if (
+                !args[0] ||
+                !args[1]
+            ) {
+                return message.reply({
+                    embeds: [
+                        roleHelpEmbed()
+                    ]
+                });
+            }
+
+            if (
                 !hasPermission(
                     message.member,
                     PermissionsBitField.Flags.ManageRoles
@@ -2074,20 +2277,6 @@ client.on(
                         errorEmbed(
                             '❌ Permission Denied',
                             'You need **Manage Roles** permission to use this command.'
-                        )
-                    ]
-                });
-            }
-
-            if (
-                !args[0] ||
-                !args[1]
-            ) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,role <user> <role>`.\n\nExample: `,role @User Moderator`'
                         )
                     ]
                 });
@@ -2226,6 +2415,20 @@ client.on(
         // ====================================================
 
         if (command === 'strip') {
+
+            // Help is shown before permission checks.
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        stripHelpEmbed()
+                    ]
+                });
+            }
+
+            // IMPORTANT:
+            // The whitelist is the user authorization.
+            // Manage Roles on the COMMAND USER is intentionally
+            // NOT required here.
             if (
                 !isStripRestoreWhitelisted(
                     message.member
@@ -2241,28 +2444,31 @@ client.on(
                 });
             }
 
+            const botMember =
+                message.guild.members.me;
+
+            if (!botMember) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Bot Error',
+                            'I could not find my member account in this server.'
+                        )
+                    ]
+                });
+            }
+
+            // The BOT must have Manage Roles.
             if (
-                !hasPermission(
-                    message.member,
+                !botMember.permissions.has(
                     PermissionsBitField.Flags.ManageRoles
                 )
             ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
-                            '❌ Permission Denied',
-                            'You need **Manage Roles** permission to use `,strip`.'
-                        )
-                    ]
-                });
-            }
-
-            if (!args[0]) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,strip <user>` to remove staff/mod permissions.'
+                            '❌ Missing Bot Permission',
+                            'I need **Manage Roles** permission to strip staff/moderation roles.'
                         )
                     ]
                 });
@@ -2294,20 +2500,6 @@ client.on(
                         errorEmbed(
                             '❌ Action Blocked',
                             'You cannot strip your own staff permissions.'
-                        )
-                    ]
-                });
-            }
-
-            const botMember =
-                message.guild.members.me;
-
-            if (!botMember) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Bot Error',
-                            'I could not find my member account in this server.'
                         )
                     ]
                 });
@@ -2404,6 +2596,20 @@ client.on(
         // ====================================================
 
         if (command === 'res') {
+
+            // Help is shown before permission checks.
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        restoreHelpEmbed()
+                    ]
+                });
+            }
+
+            // IMPORTANT:
+            // The whitelist is the user authorization.
+            // Manage Roles on the COMMAND USER is intentionally
+            // NOT required here.
             if (
                 !isStripRestoreWhitelisted(
                     message.member
@@ -2419,28 +2625,31 @@ client.on(
                 });
             }
 
+            const botMember =
+                message.guild.members.me;
+
+            if (!botMember) {
+                return message.reply({
+                    embeds: [
+                        errorEmbed(
+                            '❌ Bot Error',
+                            'I could not find my member account in this server.'
+                        )
+                    ]
+                });
+            }
+
+            // The BOT must have Manage Roles.
             if (
-                !hasPermission(
-                    message.member,
+                !botMember.permissions.has(
                     PermissionsBitField.Flags.ManageRoles
                 )
             ) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
-                            '❌ Permission Denied',
-                            'You need **Manage Roles** permission to use `,res`.'
-                        )
-                    ]
-                });
-            }
-
-            if (!args[0]) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,res <user>` to restore previously stripped roles.'
+                            '❌ Missing Bot Permission',
+                            'I need **Manage Roles** permission to restore roles.'
                         )
                     ]
                 });
@@ -2477,20 +2686,6 @@ client.on(
                         errorEmbed(
                             '⚠️ Nothing to Restore',
                             `I do not have any saved stripped roles for ${member}.`
-                        )
-                    ]
-                });
-            }
-
-            const botMember =
-                message.guild.members.me;
-
-            if (!botMember) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Bot Error',
-                            'I could not find my member account in this server.'
                         )
                     ]
                 });
@@ -2868,6 +3063,14 @@ client.on(
             command ===
             'boosterrole'
         ) {
+            if (args.length < 3) {
+                return message.reply({
+                    embeds: [
+                        boosterRoleHelpEmbed()
+                    ]
+                });
+            }
+
             const isAdmin =
                 message.member
                     .permissions
@@ -2923,17 +3126,6 @@ client.on(
                         errorEmbed(
                             '❌ Missing Permission',
                             'I need **Manage Roles** permission.'
-                        )
-                    ]
-                });
-            }
-
-            if (args.length < 3) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,boosterrole <colour1> <colour2> <name>`.\n\nExample: `,boosterrole 787878 020105 Hadi`'
                         )
                     ]
                 });
@@ -3129,6 +3321,14 @@ client.on(
         // ====================================================
 
         if (command === 'kick') {
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        kickHelpEmbed()
+                    ]
+                });
+            }
+
             if (
                 !hasPermission(
                     message.member,
@@ -3142,17 +3342,6 @@ client.on(
                         errorEmbed(
                             '❌ Permission Denied',
                             'You need **Kick Members** permission.'
-                        )
-                    ]
-                });
-            }
-
-            if (!args[0]) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,kick <member> <reason>`.'
                         )
                     ]
                 });
@@ -3233,6 +3422,14 @@ client.on(
         // ====================================================
 
         if (command === 'ban') {
+            if (!args[0]) {
+                return message.reply({
+                    embeds: [
+                        banHelpEmbed()
+                    ]
+                });
+            }
+
             if (
                 !hasPermission(
                     message.member,
@@ -3246,17 +3443,6 @@ client.on(
                         errorEmbed(
                             '❌ Permission Denied',
                             'You need **Ban Members** permission.'
-                        )
-                    ]
-                });
-            }
-
-            if (!args[0]) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,ban <member> <reason>`.'
                         )
                     ]
                 });
@@ -3341,6 +3527,17 @@ client.on(
             'timeout'
         ) {
             if (
+                !args[0] ||
+                !args[1]
+            ) {
+                return message.reply({
+                    embeds: [
+                        timeoutHelpEmbed()
+                    ]
+                });
+            }
+
+            if (
                 !hasPermission(
                     message.member,
                     PermissionsBitField
@@ -3353,20 +3550,6 @@ client.on(
                         errorEmbed(
                             '❌ Permission Denied',
                             'You need **Moderate Members** permission.'
-                        )
-                    ]
-                });
-            }
-
-            if (
-                !args[0] ||
-                !args[1]
-            ) {
-                return message.reply({
-                    embeds: [
-                        errorEmbed(
-                            '❌ Invalid Usage',
-                            'Use `,timeout <member> <duration> <reason>`.\n\nExamples: `20s`, `5m`, `2h`, `7d`'
                         )
                     ]
                 });
@@ -3584,8 +3767,6 @@ client.on(
             }
 
             try {
-                // Fetch enough messages to include
-                // the command message itself.
                 const fetched =
                     await message.channel.messages.fetch({
                         limit:
@@ -3731,8 +3912,6 @@ client.on(
 
             description +=
                 `\n**Channel:** <#${entry.channelId}>`;
-
-            // Deleted-by information intentionally removed.
 
             description +=
                 `\n**Deleted:** <t:${Math.floor(entry.deletedAt / 1000)}:F>`;
