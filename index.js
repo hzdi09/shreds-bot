@@ -226,98 +226,50 @@ function banHelpEmbed() {
         .setTitle('🔨 Ban a User')
         .setDescription('Permanently ban a member from the server.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,ban <user> [reason]`'
-            },
-            {
-                name: 'Example',
-                value: '`,ban @timmy spam`'
-            },
-            {
-                name: 'Note',
-                value: 'The reason is optional. If omitted, Shreds uses `No reason provided`.'
-            }
+            { name: 'Syntax', value: '`,ban <user> [reason]`' },
+            { name: 'Example', value: '`,ban @timmy spam`' },
+            { name: 'Note', value: 'The reason is optional. If omitted, Shreds uses `No reason provided`.' }
         )
-        .setFooter({
-            text: 'Shreds • Ban Help'
-        })
+        .setFooter({ text: 'Shreds • Ban Help' })
         .setTimestamp();
 }
 
 function kickHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('👢 Kick a User')
-        .setDescription('Remove a member from the server without banning them.')
+        .setDescription('Remove a member from the server.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,kick <user> [reason]`'
-            },
-            {
-                name: 'Example',
-                value: '`,kick @timmy spam`'
-            },
-            {
-                name: 'Note',
-                value: 'The reason is optional. If omitted, Shreds uses `No reason provided`.'
-            }
+            { name: 'Syntax', value: '`,kick <user> [reason]`' },
+            { name: 'Example', value: '`,kick @timmy spam`' },
+            { name: 'Note', value: 'The reason is optional. If omitted, Shreds uses `No reason provided`.' }
         )
-        .setFooter({
-            text: 'Shreds • Kick Help'
-        })
+        .setFooter({ text: 'Shreds • Kick Help' })
         .setTimestamp();
 }
 
 function timeoutHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('⏱️ Timeout a User')
-        .setDescription('Temporarily prevent a member from communicating in the server.')
+        .setDescription('Temporarily restrict a member from communicating in the server.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,timeout <user> <duration> [reason]`'
-            },
-            {
-                name: 'Example',
-                value: '`,timeout @timmy 10m spam`\n`,timeout @timmy 2h`'
-            },
-            {
-                name: 'Duration',
-                value: '`20s` • `5m` • `2h` • `7d`'
-            },
-            {
-                name: 'Note',
-                value: 'The reason is optional. Timeouts can be up to 28 days.'
-            }
+            { name: 'Syntax', value: '`,timeout <user> <duration> [reason]`' },
+            { name: 'Example', value: '`,timeout @timmy 10m spam`' },
+            { name: 'Note', value: 'The reason is optional. Duration examples: `20s`, `5m`, `2h`, `7d`. Maximum timeout is 28 days.' }
         )
-        .setFooter({
-            text: 'Shreds • Timeout Help'
-        })
+        .setFooter({ text: 'Shreds • Timeout Help' })
         .setTimestamp();
 }
 
 function verifyHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('✅ Verify a User')
-        .setDescription('Verify a member by giving them the Verified role and removing their Unverified role.')
+        .setDescription('Verify a member by assigning the Verified role and removing the Unverified role.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,verify <user>`'
-            },
-            {
-                name: 'Example',
-                value: '`,verify @timmy`'
-            },
-            {
-                name: 'Note',
-                value: 'Requires `Manage Roles` permission, and the Verified role must be manageable by Shreds.'
-            }
+            { name: 'Syntax', value: '`,verify <user>`' },
+            { name: 'Example', value: '`,verify @timmy`' },
+            { name: 'Note', value: 'Requires **Manage Roles** permission.' }
         )
-        .setFooter({
-            text: 'Shreds • Verify Help'
-        })
+        .setFooter({ text: 'Shreds • Verify Help' })
         .setTimestamp();
 }
 
@@ -326,98 +278,50 @@ function roleHelpEmbed() {
         .setTitle('🎭 Toggle a Role')
         .setDescription('Add a role to a member, or remove it if they already have it.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,role <user> <role>`'
-            },
-            {
-                name: 'Example',
-                value: '`,role @timmy Moderator`'
-            },
-            {
-                name: 'Note',
-                value: 'Requires `Manage Roles`. The selected role must be below both your highest role and Shreds\' highest role.'
-            }
+            { name: 'Syntax', value: '`,role <user> <role>`' },
+            { name: 'Example', value: '`,role @timmy Moderator`' },
+            { name: 'Note', value: 'Requires **Manage Roles**. The selected role must be manageable under Discord role hierarchy.' }
         )
-        .setFooter({
-            text: 'Shreds • Role Help'
-        })
+        .setFooter({ text: 'Shreds • Role Help' })
         .setTimestamp();
 }
 
 function stripHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('🛡️ Strip Staff Access')
-        .setDescription('Remove qualifying staff, moderation, or administrator roles from a member and save them for later restoration.')
+        .setDescription('Remove qualifying moderation/staff roles from a member and save them for later restoration.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,strip <user>`'
-            },
-            {
-                name: 'Example',
-                value: '`,strip @timmy`'
-            },
-            {
-                name: 'Note',
-                value: 'Only the three authorised Shreds whitelist users can use this command. Roles qualify based on their permissions and are removed only when Shreds can manage them.'
-            }
+            { name: 'Syntax', value: '`,strip <user>`' },
+            { name: 'Example', value: '`,strip @timmy`' },
+            { name: 'Note', value: 'Restricted to the authorised Shreds whitelist. Roles qualify by their actual permissions and must be below the bot’s highest role.' }
         )
-        .setFooter({
-            text: 'Shreds • Strip Help'
-        })
+        .setFooter({ text: 'Shreds • Strip Help' })
         .setTimestamp();
 }
 
 function restoreHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('♻️ Restore Staff Access')
-        .setDescription('Restore the roles previously saved when `,strip` was used on a member.')
+        .setDescription('Restore roles previously removed and saved by `,strip`.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,res <user>`'
-            },
-            {
-                name: 'Example',
-                value: '`,res @timmy`'
-            },
-            {
-                name: 'Note',
-                value: 'Only the three authorised Shreds whitelist users can use this command. Saved roles must still exist and be manageable by Shreds.'
-            }
+            { name: 'Syntax', value: '`,res <user>`' },
+            { name: 'Example', value: '`,res @timmy`' },
+            { name: 'Note', value: 'Restricted to the authorised Shreds whitelist. Only existing roles that the bot can safely manage are restored.' }
         )
-        .setFooter({
-            text: 'Shreds • Restore Help'
-        })
+        .setFooter({ text: 'Shreds • Restore Help' })
         .setTimestamp();
 }
 
 function boosterRoleHelpEmbed() {
     return new EmbedBuilder()
         .setTitle('💎 Create a Booster Role')
-        .setDescription('Create a custom role with one or two HEX colours and automatically assign it to yourself.')
+        .setDescription('Create a custom booster role from two HEX colours and assign it to yourself.')
         .addFields(
-            {
-                name: 'Syntax',
-                value: '`,boosterrole <colour1> <colour2> <name>`'
-            },
-            {
-                name: 'Example',
-                value: '`,boosterrole 787878 020105 Timmy`'
-            },
-            {
-                name: 'Access',
-                value: 'You must be a Server Booster or have `Administrator` permission.'
-            },
-            {
-                name: 'Note',
-                value: 'Colours must be 6-digit HEX values, with or without `#`. The role name uses the remaining text after the two colours.'
-            }
+            { name: 'Syntax', value: '`,boosterrole <colour1> <colour2> <name>`' },
+            { name: 'Example', value: '`,boosterrole 787878 020105 Timmy`' },
+            { name: 'Note', value: 'You must be a Server Booster or have Administrator permission. Colours must be 6-digit HEX values, with or without `#`.' }
         )
-        .setFooter({
-            text: 'Shreds • Booster Role Help'
-        })
+        .setFooter({ text: 'Shreds • Booster Role Help' })
         .setTimestamp();
 }
 
@@ -655,15 +559,16 @@ function hasPermission(
 // ============================================================
 
 function isStripRestoreWhitelisted(
-    userId
+    member
 ) {
-    if (!userId) return false;
+    if (!member) return false;
 
     // IMPORTANT:
-    // This checks the actual Discord user ID.
-    // It does NOT depend on their roles or permissions.
+    // This checks the actual Discord member ID.
+    // It does NOT depend on their roles or Manage Roles
+    // permission.
     return STRIP_ALLOWED_USERS.has(
-        String(userId)
+        String(member.id)
     );
 }
 
@@ -2151,7 +2056,7 @@ client.on(
                 });
             }
 
-            const member =
+            let member =
                 await findMember(
                     message.guild,
                     args[0]
@@ -2293,7 +2198,7 @@ client.on(
                 });
             }
 
-            const member =
+            let member =
                 await findMember(
                     message.guild,
                     args[0]
@@ -2442,7 +2347,7 @@ client.on(
             // NOT required here.
             if (
                 !isStripRestoreWhitelisted(
-                    message.author.id
+                    message.member
                 )
             ) {
                 return message.reply({
@@ -2456,7 +2361,7 @@ client.on(
             }
 
             const botMember =
-                message.guild.members.me;
+                await message.guild.members.fetchMe();
 
             if (!botMember) {
                 return message.reply({
@@ -2501,6 +2406,14 @@ client.on(
                     ]
                 });
             }
+
+            // Refresh the member and guild roles so role permission checks
+            // are based on current Discord state rather than stale caches.
+            await message.guild.roles.fetch();
+            member = await message.guild.members.fetch({
+                user: member.id,
+                force: true
+            });
 
             if (
                 member.id ===
@@ -2551,14 +2464,14 @@ client.on(
                             role.id
                     );
 
-                await member.roles.remove(
-                    manageableRoles,
-                    `Staff roles stripped by ${message.author.tag}`
-                );
-
                 strippedRoles.set(
                     member.id,
                     roleIds
+                );
+
+                await member.roles.remove(
+                    manageableRoles,
+                    `Staff roles stripped by ${message.author.tag}`
                 );
 
                 return message.reply({
@@ -2623,7 +2536,7 @@ client.on(
             // NOT required here.
             if (
                 !isStripRestoreWhitelisted(
-                    message.author.id
+                    message.member
                 )
             ) {
                 return message.reply({
@@ -2637,7 +2550,7 @@ client.on(
             }
 
             const botMember =
-                message.guild.members.me;
+                await message.guild.members.fetchMe();
 
             if (!botMember) {
                 return message.reply({
@@ -2683,6 +2596,12 @@ client.on(
                 });
             }
 
+            await message.guild.roles.fetch();
+            member = await message.guild.members.fetch({
+                user: member.id,
+                force: true
+            });
+
             const savedRoles =
                 strippedRoles.get(
                     member.id
@@ -2704,36 +2623,21 @@ client.on(
 
             const rolesToRestore =
                 savedRoles
-                    .map(
-                        id =>
-                            message.guild
-                                .roles
-                                .cache
-                                .get(id)
+                    .map(id =>
+                        message.guild.roles.cache.get(id)
                     )
                     .filter(Boolean)
-                    .filter(
-                        role =>
-                            !role.managed &&
-                            role.position <
-                            botMember
-                                .roles
-                                .highest
-                                .position
+                    .filter(role =>
+                        !role.managed &&
+                        role.position < botMember.roles.highest.position
                     );
 
-            if (
-                !rolesToRestore.length
-            ) {
-                strippedRoles.delete(
-                    member.id
-                );
-
+            if (!rolesToRestore.length) {
                 return message.reply({
                     embeds: [
                         errorEmbed(
                             '⚠️ Nothing to Restore',
-                            'The saved roles no longer exist or are above my highest role.'
+                            'The saved roles no longer exist or are not currently manageable by the bot.'
                         )
                     ]
                 });
@@ -2745,9 +2649,21 @@ client.on(
                     `Previously stripped roles restored by ${message.author.tag}`
                 );
 
-                strippedRoles.delete(
-                    member.id
+                const restoredIds = new Set(
+                    rolesToRestore.map(role => role.id)
                 );
+                const remainingSavedRoles = savedRoles.filter(
+                    id => !restoredIds.has(id)
+                );
+
+                if (remainingSavedRoles.length) {
+                    strippedRoles.set(
+                        member.id,
+                        remainingSavedRoles
+                    );
+                } else {
+                    strippedRoles.delete(member.id);
+                }
 
                 return message.reply({
                     embeds: [
